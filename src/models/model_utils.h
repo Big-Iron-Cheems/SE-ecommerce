@@ -2,8 +2,8 @@
 #define ECOMMERCE_MODEL_UTILS_H
 
 #include <cstdint>
-#include <string>
-#include <utility>
+#include <sstream>
+#include "../utils.h"
 
 
 #endif //ECOMMERCE_MODEL_UTILS_H

@@ -1,8 +1,7 @@
 #ifndef ECOMMERCE_CUSTOMER_H
 #define ECOMMERCE_CUSTOMER_H
 
-
-#include "model_utils.h"
+#include "User.h"
 
 /**
  * Implementation of a Customer class.
@@ -11,16 +10,17 @@
  * A customer buys products offered by suppliers and delivered by transporters.
  * Customers can also return products.
  */
-class Customer {
-private:
-    uint32_t customerId; ///< Unique identifier of the customer.
-    std::string name; ///< Name of the customer.
-    uint32_t balance; ///< Balance of the customer.
+class Customer : public User {
 public:
-    Customer(const uint32_t &id, std::string name) : customerId(id), name(std::move(name)) {
+    Customer(const uint32_t &id, std::string name, const uint32_t &balance = 0) : User(id, std::move(name), balance) {
         // Initialize other attributes...
-        balance = 0;
     }
+
+    /**
+     * @return a string representation of the Customer.
+     */
+    [[nodiscard]] std::string toString() const override;
+
 
     // Customer methods...
     /*

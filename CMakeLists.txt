@@ -15,6 +15,7 @@ add_executable(ecommerce
         src/models/Customer.cpp
         src/models/Supplier.cpp
         src/models/Transporter.cpp
+        src/utils.cpp
 )
 
 # Link to redis and postgresql

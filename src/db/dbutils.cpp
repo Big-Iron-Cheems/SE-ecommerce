@@ -1,15 +1,22 @@
 #include "dbutils.h"
 
 /*
+ * // PostgreSQL setup
  * sudo systemctl start postgresql.service redis.service (to ensure the services are running)
  * sudo su postgres (to switch to the postgres user)
  * initdb -D /var/lib/postgres/data (to initialize the database)
+ *
+ * // Reset user
+ * REASSIGN OWNED BY ecommerce TO postgres;
+ * DROP OWNED BY ecommerce;
+ * DROP USER ecommerce;
  */
 
-PGconn *conn2Postgres() {
-    PGconn *conn = PQconnectdb("dbname=postgres user=postgres password=");
+PGconn *conn2Postgres(const std::string &dbname, const std::string &user, const std::string &password) {
+    std::string connInfo = "dbname=" + dbname + " user=" + user + " password=" + password;
+    PGconn *conn = PQconnectdb(connInfo.c_str());
     if (PQstatus(conn) != CONNECTION_OK) {
-        std::cerr << "[ERROR] Failed to connect to Postgres:\n" << PQerrorMessage(conn) << std::endl;
+        errorPrint("Failed to connect to Postgres: " + std::string(PQerrorMessage(conn)));
         PQfinish(conn);
         return nullptr;
     }
@@ -17,25 +24,28 @@ PGconn *conn2Postgres() {
     return conn;
 }
 
+bool doesDatabaseExist(PGconn *conn, const std::string &databaseName) {
+    std::string query = "SELECT 1 FROM pg_database WHERE datname = '" + databaseName + "'";
+    PGresult *res = execCommand(conn, query);
+
+    if (!res) return false;
+
+    // Check if there is at least one row (database exists)
+    bool databaseExists = (PQntuples(res) > 0);
+    PQclear(res);
+
+    return databaseExists;
+}
+
+void createDatabase(PGconn *conn, const std::string &databaseName) {
+    if (doesDatabaseExist(conn, databaseName)) debugPrint("Database `" + databaseName + "` already exists.");
+    else {
+        if (!execCommand(conn, "CREATE DATABASE " + databaseName)) return;
+        debugPrint("Database `" + databaseName + "` created.");
+    }
+}
+
 bool doesUserExist(PGconn *conn, const std::string &username) {
-    /*   const char *query = "SELECT 1 FROM pg_user WHERE usename = $1";
-       const char *paramValues[1] = {username.c_str()};
-       const int paramLengths[1] = {static_cast<int>(username.length())};
-       const int paramFormats[1] = {1}; // Text format
-       PGresult *res = PQexecParams(conn, query, 1, nullptr, paramValues, paramLengths, paramFormats, 0);
-
-       if (PQresultStatus(res) != PGRES_TUPLES_OK) {
-           fprintf(stderr, "Failed to execute query:\n%s", PQerrorMessage(conn));
-           PQclear(res);
-           return false;
-       }
-
-       // Check if there is at least one row (user exists)
-       bool userExists = (PQntuples(res) > 0);
-       PQclear(res);
-
-       return userExists;
-    */
     std::string query = "SELECT 1 FROM pg_user WHERE usename = '" + username + "'";
     PGresult *res = execCommand(conn, query);
 
@@ -48,11 +58,11 @@ bool doesUserExist(PGconn *conn, const std::string &username) {
     return userExists;
 }
 
-void createUser(PGconn *conn, const std::string &username, const std::string &password) {
-    if (doesUserExist(conn, username)) std::cout << "[DEBUG] User " + username + " already exists." << std::endl;
+void createUser(PGconn *conn, const std::string &username, const std::string &password, const std::string &options) {
+    if (doesUserExist(conn, username)) debugPrint("User `" + username + "` already exists.");
     else {
-        if (!execCommand(conn, "CREATE USER ecommerce WITH PASSWORD 'ecommerce'")) return;
-        std::cout << "[DEBUG] User " + username + " created." << std::endl;
+        if (!execCommand(conn, "CREATE USER " + username + " WITH PASSWORD '" + password + "' " + options)) return;
+        debugPrint("User `" + username + "` created.");
     }
 }
 
@@ -70,24 +80,24 @@ bool doesTableExist(PGconn *conn, const std::string &tableName) {
 }
 
 void createTable(PGconn *conn, const std::string &tableName, const std::string &columns) {
-    if (doesTableExist(conn, tableName)) std::cout << "[DEBUG] Table " + tableName + " already exists." << std::endl;
+    if (doesTableExist(conn, tableName)) debugPrint("Table `" + tableName + "` already exists.");
     else {
         if (!execCommand(conn, "CREATE TABLE " + tableName + " (" + columns + ")")) return;
-        std::cout << "[DEBUG] Table " + tableName + " created." << std::endl;
+        debugPrint("Table `" + tableName + "` created.");
     }
 }
 
 PGresult *execCommand(PGconn *conn, const std::string &command) {
-    std::cout << "[DEBUG] Executing command: " << command.c_str() << std::endl;
+    debugPrint("Executing command: " + command);
 
     if (PQstatus(conn) != CONNECTION_OK) {
-        std::cerr << "[ERROR] Connection to PostgreSQL failed: " << PQerrorMessage(conn) << std::endl;
+        errorPrint("Connection to PostgreSQL failed: " + std::string(PQerrorMessage(conn)));
         return nullptr;
     }
 
     PGresult *res = PQexec(conn, command.c_str());
     if (PQresultStatus(res) != PGRES_COMMAND_OK && PQresultStatus(res) != PGRES_TUPLES_OK) {
-        std::cerr << "[ERROR] Failed to execute command:\n" << PQerrorMessage(conn) << std::endl;
+        errorPrint("Failed to execute command: " + std::string(PQerrorMessage(conn)));
         PQclear(res);
         return nullptr;
     }
@@ -97,6 +107,50 @@ PGresult *execCommand(PGconn *conn, const std::string &command) {
 
 
 // Sezione porcherie
+
+PGconn *initDatabase() {
+    // Connect to the default 'postgres' database as the 'postgres' user
+    PGconn *conn = PQconnectdb("dbname=postgres user=postgres password=");
+    if (PQstatus(conn) != CONNECTION_OK) {
+        errorPrint("Failed to connect to Postgres database 'postgres' as user 'postgres': " + std::string(PQerrorMessage(conn)));
+        PQfinish(conn);
+        return nullptr;
+    }
+
+    // Create the 'ecommerce' user as `postgres` if it does not exist
+    createUser(conn, "ecommerce", "ecommerce", "NOSUPERUSER CREATEDB NOCREATEROLE INHERIT LOGIN NOREPLICATION NOBYPASSRLS");
+
+    // Disconnect from the 'postgres' database as the 'postgres' user
+    PQfinish(conn);
+
+    // Connect to the default 'postgres' database as the 'ecommerce' user
+    conn = conn2Postgres("postgres", "ecommerce", "ecommerce");
+    if (PQstatus(conn) != CONNECTION_OK) {
+        errorPrint("Failed to connect to Postgres database 'postgres' as user 'ecommerce': " + std::string(PQerrorMessage(conn)));
+        PQfinish(conn);
+        return nullptr;
+    }
+
+    // Create the 'ecommerce' database as `ecommerce` if it does not exist
+    createDatabase(conn, "ecommerce");
+
+    // Disconnect from the 'postgres' database as the 'ecommerce' user
+    PQfinish(conn);
+
+    // Connect to the 'ecommerce' database as the 'ecommerce' user
+    conn = conn2Postgres("ecommerce", "ecommerce", "ecommerce");
+    if (PQstatus(conn) != CONNECTION_OK) {
+        errorPrint("Failed to connect to Postgres database 'ecommerce' as user 'ecommerce': " + std::string(PQerrorMessage(conn)));
+        PQfinish(conn);
+        return nullptr;
+    }
+
+    // Create the tables if they do not exist
+    initTables(conn);
+
+    // Return the connection to the now ready database
+    return conn;
+}
 
 void initTables(PGconn *conn) {
 

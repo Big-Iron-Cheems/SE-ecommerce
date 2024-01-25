@@ -2,15 +2,31 @@
 #define ECOMMERCE_DBUTILS_H
 
 #include <libpq-fe.h>
-#include <cstring>
-#include <string>
-#include <iostream>
+#include "../utils.h"
 
 /**
- * Connect to PostgreSQL
+ * Connect to a PostgreSQL database
+ * @param dbname the name of the database to connect to
+ * @param user the username to use
+ * @param password the password to use
  * @return a pointer to the connection object
  */
-PGconn *conn2Postgres();
+PGconn *conn2Postgres(const std::string &dbname, const std::string &user, const std::string &password);
+
+/**
+ * Check if a database exists in PostgreSQL
+ * @param conn a pointer to the connection object
+ * @param databaseName the name of the database to check
+ * @return true if the database exists, false otherwise
+ */
+bool doesDatabaseExist(PGconn *conn, const std::string &databaseName);
+
+/**
+ * Create a new database in PostgreSQL
+ * @param conn a pointer to the connection object
+ * @param databaseName the name of the database to create
+ */
+void createDatabase(PGconn *conn, const std::string &databaseName);
 
 /**
  * Check if a user exists in PostgreSQL
@@ -26,7 +42,7 @@ bool doesUserExist(PGconn *conn, const std::string &username);
  * @param username the username to create
  * @param password the password to use
  */
-void createUser(PGconn *conn, const std::string& username, const std::string &password);
+void createUser(PGconn *conn, const std::string &username, const std::string &password, const std::string &options);
 
 /**
  * Check if a table exists in PostgreSQL
@@ -51,7 +67,13 @@ void createTable(PGconn *conn, const std::string &tableName, const std::string &
  * @param command the command to execute
  * @return the result of the command or nullptr if an error occurred
  */
-PGresult * execCommand(PGconn *conn, const std::string &command);
+PGresult *execCommand(PGconn *conn, const std::string &command);
+
+/**
+ * Initialize the ecommerce database
+ * @return a pointer to the connection object
+ */
+PGconn *initDatabase();
 
 /**
  * Initialize the tables in PostgreSQL

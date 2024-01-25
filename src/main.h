@@ -1,7 +1,6 @@
 #ifndef ECOMMERCE_MAIN_H
 #define ECOMMERCE_MAIN_H
 
-#include <iostream>
 #include "db/dbutils.h"
 #include "redis/rdutils.h"
 
