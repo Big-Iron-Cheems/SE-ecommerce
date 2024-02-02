@@ -1,4 +1,5 @@
 #include "main.h"
+#include "models/Customer.h"
 
 int main() {
     // Connect to PostgreSQL
@@ -15,6 +16,17 @@ int main() {
 
     // Program logic...
     tracePrint("Postgres and Redis are running.");
+
+    // Testing
+    /*{
+        Customer customer(0, "Gigio", 100);
+        customer.searchProduct(std::nullopt, std::nullopt, std::nullopt, std::nullopt, "amount", true);
+        customer.getBalance();
+        customer.setBalance(50, true);
+        customer.getBalance();
+        customer.setBalance(150, false);
+        customer.getBalance();
+    }*/
 
     // Terminating the program
     cleanup(postgresConn, redisContext);

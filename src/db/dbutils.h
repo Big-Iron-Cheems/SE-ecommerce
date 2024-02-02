@@ -2,6 +2,7 @@
 #define ECOMMERCE_DBUTILS_H
 
 #include <libpq-fe.h>
+#include <vector>
 #include "../utils.h"
 
 /**
@@ -60,6 +61,29 @@ bool doesTableExist(PGconn *conn, const std::string &tableName);
  */
 void createTable(PGconn *conn, const std::string &tableName, const std::string &columns);
 
+/**
+ * Check if a function exists in PostgreSQL
+ * @param conn a pointer to the connection object
+ * @param functionName the name of the function to check
+ * @param argTypes the types of the arguments of the function
+ * @return true if the function exists, false otherwise
+ */
+bool doesFunctionExist(PGconn *conn, const std::string &functionName, const std::vector<std::string> &argTypes);
+
+/**
+ * Create a new function in PostgreSQL
+ * @param conn a pointer to the connection object
+ * @param functionName the name of the function to create
+ * @param args the arguments of the function, as a vector of pairs of the argument name and type
+ * @param returnType the return type of the function
+ * @param body the body of the function
+ */
+void createFunction(PGconn *conn,
+                    const std::string &functionName,
+                    const std::vector<std::pair<std::string, std::string>> &args,
+                    const std::string &returnType,
+                    const std::string &body
+);
 
 /**
  * Execute a command in PostgreSQL
@@ -80,5 +104,11 @@ PGconn *initDatabase();
  * @param conn a pointer to the connection object
  */
 void initTables(PGconn *conn);
+
+/**
+ * Initialize the functions in PostgreSQL
+ * @param conn a pointer to the connection object
+ */
+void initFunctions(PGconn *conn);
 
 #endif //ECOMMERCE_DBUTILS_H

@@ -87,8 +87,77 @@ void createTable(PGconn *conn, const std::string &tableName, const std::string &
     }
 }
 
+// FIXME: this does not work, it returns false even if the function exists
+bool doesFunctionExist(PGconn *conn, const std::string &functionName, const std::vector<std::string> &argTypes) {
+    // Build the query to get the function with the given name and argument types
+    std::string query = "SELECT 1 FROM pg_proc, pg_type WHERE pg_proc.proname = '" + functionName + "' AND pg_proc.proargtypes = ARRAY[";
+
+    // Add the argument types to the query
+    for (size_t i = 0; i < argTypes.size(); ++i) {
+        query += "(SELECT oid FROM pg_type WHERE typname = '" + argTypes[i] + "')";
+        if (i < argTypes.size() - 1) {
+            query += ",";
+        }
+    }
+    query += "]::oidvector";
+
+    // Execute the query
+    PGresult *res = execCommand(conn, query);
+    if (!res) return false;
+
+    // Check if there is at least one row (function exists)
+    bool functionExists = (PQntuples(res) > 0);
+    PQclear(res);
+
+    return functionExists;
+}
+
+// TODO: actually use this once doesFunctionExist is fixed
+void createFunction(PGconn *conn,
+                    const std::string &functionName,
+                    const std::vector<std::pair<std::string, std::string>> &args,
+                    const std::string &returnType,
+                    const std::string &body
+) {
+    // Get the argument types as a vector and as a string
+    std::vector<std::string> argTypes;
+    std::string argTypesStr;
+    for (const std::pair<std::string, std::string> &arg: args) {
+        argTypes.push_back(arg.second);
+        argTypesStr += arg.second + ", ";
+    }
+    // Remove trailing comma and space
+    if (!argTypesStr.empty()) {
+        argTypesStr.pop_back();
+        argTypesStr.pop_back();
+    }
+
+    // Check if the function already exists
+    if (doesFunctionExist(conn, functionName, argTypes)) {
+        debugPrint("Function `" + functionName + "(" + argTypesStr + ")` already exists.");
+        return;
+    }
+
+    tracePrint("Creating function `" + functionName + "(" + argTypesStr + ")`...");
+    // Start building the query
+    std::string query = "CREATE OR REPLACE FUNCTION " + functionName + "(";
+
+    // Add the arguments to the query
+    for (size_t i = 0; i < args.size(); ++i) {
+        query += args[i].first + " " + args[i].second;
+        if (i < args.size() - 1) query += ", ";
+    }
+
+    // Finish building the query
+    query += ") RETURNS " + returnType + " AS $$ BEGIN " + body + " END; $$ LANGUAGE plpgsql SECURITY DEFINER;";
+
+    // Execute the query
+    if (!execCommand(conn, query)) return;
+    else debugPrint("Function created: `" + functionName + "(" + argTypesStr + ")`");
+}
+
 PGresult *execCommand(PGconn *conn, const std::string &command) {
-    debugPrint("Executing command: " + command);
+    debugPrint("Executing: " + command);
 
     if (PQstatus(conn) != CONNECTION_OK) {
         errorPrint("Connection to PostgreSQL failed: " + std::string(PQerrorMessage(conn)));
@@ -120,6 +189,12 @@ PGconn *initDatabase() {
     // Create the 'ecommerce' user as `postgres` if it does not exist
     createUser(conn, "ecommerce", "ecommerce", "NOSUPERUSER CREATEDB NOCREATEROLE INHERIT LOGIN NOREPLICATION NOBYPASSRLS");
 
+    // Create the 'customer', 'supplier', and 'transporter' users with fewer permissions
+    createUser(conn, "customer", "customer", "NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT LOGIN NOREPLICATION NOBYPASSRLS");
+    createUser(conn, "supplier", "supplier", "NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT LOGIN NOREPLICATION NOBYPASSRLS");
+    createUser(conn, "transporter", "transporter", "NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT LOGIN NOREPLICATION NOBYPASSRLS");
+
+
     // Disconnect from the 'postgres' database as the 'postgres' user
     PQfinish(conn);
 
@@ -148,6 +223,9 @@ PGconn *initDatabase() {
     // Create the tables if they do not exist
     initTables(conn);
 
+    // Define SQL functions
+    initFunctions(conn);
+
     // Return the connection to the now ready database
     return conn;
 }
@@ -162,36 +240,99 @@ void initTables(PGconn *conn) {
 //    createTable(conn, "users", "id SERIAL PRIMARY KEY, username VARCHAR(255) UNIQUE NOT NULL, balance INT NOT NULL, user_type VARCHAR(255) NOT NULL");
 
     // Seen by customers and suppliers
-    createTable(conn, "products", "id SERIAL PRIMARY KEY, "
-                                  "name VARCHAR(255) NOT NULL, "
-                                  "supplier_id INT NOT NULL,"
-                                  "price INT NOT NULL, "
-                                  "amount INT NOT NULL, "
-                                  "description VARCHAR(255) NOT NULL, "
-                                  "FOREIGN KEY (supplier_id) REFERENCES suppliers(id)"
+    createTable(conn, "products", R"(
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            supplier_id INT NOT NULL,
+            price INT NOT NULL,
+            amount INT NOT NULL,
+            description VARCHAR(255) NOT NULL,
+            FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
+        )"
     ); ///<
 
-    createTable(conn, "orders", "id SERIAL PRIMARY KEY, "
-                                "customer_id INT NOT NULL, "
-                                "total_price INT NOT NULL, "
-                                "transporter_id INT NOT NULL, "
-                                "status VARCHAR(255) NOT NULL, "
-                                "address VARCHAR(255) NOT NULL, "
-                                "timestamp TIMESTAMP NOT NULL,"
-                                "FOREIGN KEY (customer_id) REFERENCES customers(id), "
-                                "FOREIGN KEY (transporter_id) REFERENCES transporters(id)"
+    createTable(conn, "orders", R"(
+            id SERIAL PRIMARY KEY,
+            customer_id INT NOT NULL,
+            total_price INT NOT NULL,
+            transporter_id INT NOT NULL,
+            status VARCHAR(255) NOT NULL,
+            address VARCHAR(255) NOT NULL,
+            timestamp TIMESTAMP NOT NULL,
+            FOREIGN KEY (customer_id) REFERENCES customers(id),
+            FOREIGN KEY (transporter_id) REFERENCES transporters(id)
+        )"
     ); ///<
 
-    createTable(conn, "order_items", "id SERIAL PRIMARY KEY, "
-                                     "order_id INT NOT NULL, "
-                                     "product_id INT NOT NULL, "
-                                     "quantity INT NOT NULL, "
-                                     "price INT NOT NULL, "
-                                     "supplier_id INT NOT NULL, "
-                                     "FOREIGN KEY (order_id) REFERENCES orders(id), "
-                                     "FOREIGN KEY (product_id) REFERENCES products(id), "
-                                     "FOREIGN KEY (supplier_id) REFERENCES suppliers(id)"
+    createTable(conn, "order_items", R"(
+            id SERIAL PRIMARY KEY,
+            order_id INT NOT NULL,
+            product_id INT NOT NULL,
+            quantity INT NOT NULL,
+            price INT NOT NULL,
+            supplier_id INT NOT NULL,
+            FOREIGN KEY (order_id) REFERENCES orders(id),
+            FOREIGN KEY (product_id) REFERENCES products(id),
+            FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
+        )"
     ); ///<
 
 
+    // Grant permissions
+    execCommand(conn, "GRANT SELECT ON customers TO customer");
+//    execCommand(conn, "GRANT SELECT ON suppliers TO customer, supplier, transporter");
+//    execCommand(conn, "GRANT SELECT ON transporters TO customer, supplier, transporter");
+    execCommand(conn, "GRANT SELECT ON products TO customer, supplier");
+//    execCommand(conn, "GRANT SELECT ON orders TO customer, supplier, transporter");
+//    execCommand(conn, "GRANT SELECT ON order_items TO customer, supplier, transporter");
+}
+
+void initFunctions(PGconn *conn) { // TODO: check beforehand if the functions already exist and skip them if they do
+    // Define SQL functions
+    std::string setBalanceProcedureCustomer = R"(
+        CREATE OR REPLACE FUNCTION set_balance_customer(customer_id INT, increase_amount INT, add BOOLEAN)
+        RETURNS VOID AS $$
+        BEGIN
+            IF add THEN
+                UPDATE customers SET balance = balance + increase_amount WHERE id = customer_id;
+            ELSE
+                UPDATE customers SET balance = balance - increase_amount WHERE id = customer_id;
+            END IF;
+        END;
+        $$ LANGUAGE plpgsql SECURITY DEFINER;
+    )";
+    execCommand(conn, setBalanceProcedureCustomer);
+
+    std::string setBalanceProcedureSupplier = R"(
+        CREATE OR REPLACE FUNCTION set_balance_supplier(supplier_id INT, increase_amount INT, add BOOLEAN)
+        RETURNS VOID AS $$
+        BEGIN
+            IF add THEN
+                UPDATE suppliers SET balance = balance + increase_amount WHERE id = supplier_id;
+            ELSE
+                UPDATE suppliers SET balance = balance - increase_amount WHERE id = supplier_id;
+            END IF;
+        END;
+        $$ LANGUAGE plpgsql SECURITY DEFINER;
+    )";
+    execCommand(conn, setBalanceProcedureSupplier);
+
+    std::string setBalanceProcedureTransporter = R"(
+        CREATE OR REPLACE FUNCTION set_balance_transporter(transporter_id INT, increase_amount INT, add BOOLEAN)
+        RETURNS VOID AS $$
+        BEGIN
+            IF add THEN
+                UPDATE transporters SET balance = balance + increase_amount WHERE id = transporter_id;
+            ELSE
+                UPDATE transporters SET balance = balance - increase_amount WHERE id = transporter_id;
+            END IF;
+        END;
+        $$ LANGUAGE plpgsql SECURITY DEFINER;
+    )";
+    execCommand(conn, setBalanceProcedureTransporter);
+
+    // Grant the EXECUTE permission to the respective users
+    execCommand(conn, "GRANT EXECUTE ON FUNCTION set_balance_customer(INT, INT, BOOL) TO customer;");
+    execCommand(conn, "GRANT EXECUTE ON FUNCTION set_balance_supplier(INT, INT, BOOL) TO supplier;");
+    execCommand(conn, "GRANT EXECUTE ON FUNCTION set_balance_transporter(INT, INT, BOOL) TO transporter;");
 }
