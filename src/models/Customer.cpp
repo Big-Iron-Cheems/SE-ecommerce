@@ -15,7 +15,7 @@ void Customer::getBalance() const {
     // connect to `ecommerce` db as `customer` user
     PGconn *conn = conn2Postgres("ecommerce", "customer", "customer");
     if (PQstatus(conn) != CONNECTION_OK) {
-        errorPrint("Failed to connect to Postgres database 'ecommerce' as user 'customer': " + std::string(PQerrorMessage(conn)));
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to connect to Postgres database 'ecommerce' as user 'customer': ", PQerrorMessage(conn));
         PQfinish(conn);
         return;
     }
@@ -25,20 +25,20 @@ void Customer::getBalance() const {
 
     // execute the query
     PGresult *res = execCommand(conn, query);
-    if(!res){
+    if (!res) {
         PQfinish(conn);
         return;
     }
 
     // print the result
-    tracePrint("Balance: " + std::string(PQgetvalue(res, 0, 0)));
+    Utils::log(Utils::LogLevel::TRACE, std::cout, "Balance: ", PQgetvalue(res, 0, 0));
 }
 
 void Customer::setBalance(const uint32_t &balanceChange, bool add) {
     // Connect to the `ecommerce` database as the `customer` user
     PGconn *conn = conn2Postgres("ecommerce", "customer", "customer");
     if (PQstatus(conn) != CONNECTION_OK) {
-        errorPrint("Failed to connect to Postgres database 'ecommerce' as user 'customer': " + std::string(PQerrorMessage(conn)));
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to connect to Postgres database 'ecommerce' as user 'customer': ", PQerrorMessage(conn));
         PQfinish(conn);
         return;
     }
@@ -54,24 +54,22 @@ void Customer::setBalance(const uint32_t &balanceChange, bool add) {
     }
 
     // Print the result
-    tracePrint((add ? "Balance increased by " : "Balance decreased by ") + std::to_string(balanceChange));
+    Utils::log(Utils::LogLevel::TRACE, std::cout, (add ? "Balance increased by " : "Balance decreased by "), PQgetvalue(res, 0, 0));
 
     PQclear(res);
     PQfinish(conn);
 }
 
-void Customer::searchProduct(
-        const std::optional<std::string> &name,
-        const std::optional<std::string> &supplierUsername,
-        const std::optional<uint32_t> &priceLowerBound,
-        const std::optional<uint32_t> &priceUpperBound,
-        const std::optional<std::string> &orderBy,
-        const std::optional<bool> &sortDescending
-) const {
+void Customer::searchProduct(const std::optional<std::string> &name,
+                             const std::optional<std::string> &supplierUsername,
+                             const std::optional<uint32_t> &priceLowerBound,
+                             const std::optional<uint32_t> &priceUpperBound,
+                             const std::optional<std::string> &orderBy,
+                             const std::optional<bool> &sortDescending) const {
     // connect to `ecommerce` db as `customer` user
     PGconn *conn = conn2Postgres("ecommerce", "customer", "customer");
     if (PQstatus(conn) != CONNECTION_OK) {
-        errorPrint("Failed to connect to Postgres database 'ecommerce' as user 'customer': " + std::string(PQerrorMessage(conn)));
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to connect to Postgres database 'ecommerce' as user 'customer': ", PQerrorMessage(conn));
         PQfinish(conn);
         return;
     }
@@ -103,7 +101,7 @@ void Customer::searchProduct(
     PGresult *res = execCommand(conn, query);
     int rows = PQntuples(res);
     if (rows == 0) {
-        tracePrint("No products found.");
+        Utils::log(Utils::LogLevel::TRACE, std::cout, "No products found.");
         PQclear(res);
         PQfinish(conn);
         return;
@@ -111,15 +109,12 @@ void Customer::searchProduct(
 
     // TODO: create function to print query results as a table (with headers)
     // print results
-    tracePrint("Found " + std::to_string(rows) + " products:");
+    Utils::log(Utils::LogLevel::TRACE, std::cout, "Found ", rows, " products:");
     for (int i = 0; i < rows; i++) {
-        tracePrint("\tid " + std::to_string(i) + ": "
-                   + PQgetvalue(res, i, 0) + " | "
-                   + PQgetvalue(res, i, 1) + " | "
-                   + PQgetvalue(res, i, 2) + " | "
-                   + PQgetvalue(res, i, 3) + " | "
-                   + PQgetvalue(res, i, 4)
-        );
+        Utils::log(Utils::LogLevel::TRACE, std::cout, "\tid ", i, ": ");
+        int cols = PQnfields(res);
+        for (int j = 0; j < cols; j++) { Utils::log(Utils::LogLevel::TRACE, std::cout, PQgetvalue(res, i, j), " | "); }
+        std::cout << std::endl;
     }
     PQclear(res);
     PQfinish(conn);

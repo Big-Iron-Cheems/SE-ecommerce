@@ -1,5 +1,4 @@
-#ifndef ECOMMERCE_MAIN_H
-#define ECOMMERCE_MAIN_H
+#pragma once
 
 #include "db/dbutils.h"
 #include "redis/rdutils.h"
@@ -10,5 +9,3 @@
  * @param context Redis connection
  */
 void cleanup(PGconn *conn, redisContext *context);
-
-#endif //ECOMMERCE_MAIN_H

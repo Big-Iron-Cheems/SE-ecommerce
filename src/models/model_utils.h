@@ -1,12 +1,6 @@
-#ifndef ECOMMERCE_MODEL_UTILS_H
-#define ECOMMERCE_MODEL_UTILS_H
+#pragma once
 
-#include <cstdint>
-#include <sstream>
-#include <map>
-#include <optional>
-#include "../utils.h"
 #include "../db/dbutils.h"
-
-
-#endif //ECOMMERCE_MODEL_UTILS_H
+#include "../utils.h"
+#include <cstdint>
+#include <optional>

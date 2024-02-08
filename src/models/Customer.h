@@ -1,5 +1,4 @@
-#ifndef ECOMMERCE_CUSTOMER_H
-#define ECOMMERCE_CUSTOMER_H
+#pragma once
 
 #include "User.h"
 
@@ -12,7 +11,7 @@
  */
 class Customer : public User {
 public:
-    Customer(const uint32_t &id, std::string name, const uint32_t &balance = 0) : User(id, std::move(name), balance) {
+    Customer(std::string name, const uint32_t &balance = 0) : User(std::move(name), balance) {
         // Initialize other attributes...
     }
 
@@ -35,17 +34,9 @@ public:
 
     // Balance related methods
 
-    /**
-     * Get the balance of the Customer.
-     */
-    void getBalance() const;
+    void getBalance() const override;
 
-    /**
-     * Set the balance of the Customer. Can add/remove money from the balance.
-     * @param balanceChange the amount of money to add/remove from the balance.
-     * @param add whether to add or remove the money from the balance.
-     */
-    void setBalance(const uint32_t &balanceChange, bool add);
+    void setBalance(const uint32_t &balanceChange, bool add) override;
 
     // Product related methods
 
@@ -70,14 +61,12 @@ public:
      * @param priceUpperBound The upper bound of the price range to filter for.
      * @param orderBy The column to sort the results by. (Can be "name", "supplier_username" or "price")
      */
-    void searchProduct(
-            const std::optional<std::string> &name,
-            const std::optional<std::string> &supplierUsername,
-            const std::optional<uint32_t> &priceLowerBound,
-            const std::optional<uint32_t> &priceUpperBound,
-            const std::optional<std::string> &orderBy,
-            const std::optional<bool> &sortDescending
-    ) const;
+    void searchProduct(const std::optional<std::string> &name,
+                       const std::optional<std::string> &supplierUsername,
+                       const std::optional<uint32_t> &priceLowerBound,
+                       const std::optional<uint32_t> &priceUpperBound,
+                       const std::optional<std::string> &orderBy,
+                       const std::optional<bool> &sortDescending) const;
 
     // Cart related methods
 
@@ -134,6 +123,3 @@ public:
 
     // TODO: A way to delete the Customer from the database, removing his account
 };
-
-
-#endif //ECOMMERCE_CUSTOMER_H

@@ -1,9 +1,9 @@
-#ifndef ECOMMERCE_DBUTILS_H
-#define ECOMMERCE_DBUTILS_H
+#pragma once
 
+#include "../utils.h"
 #include <libpq-fe.h>
 #include <vector>
-#include "../utils.h"
+//#include <pqxx/pqxx> // TODO: replace libpq-fe.h with pqxx/pqxx
 
 /**
  * Connect to a PostgreSQL database
@@ -82,8 +82,7 @@ void createFunction(PGconn *conn,
                     const std::string &functionName,
                     const std::vector<std::pair<std::string, std::string>> &args,
                     const std::string &returnType,
-                    const std::string &body
-);
+                    const std::string &body);
 
 /**
  * Execute a command in PostgreSQL
@@ -110,5 +109,3 @@ void initTables(PGconn *conn);
  * @param conn a pointer to the connection object
  */
 void initFunctions(PGconn *conn);
-
-#endif //ECOMMERCE_DBUTILS_H

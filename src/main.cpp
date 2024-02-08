@@ -15,7 +15,7 @@ int main() {
     }
 
     // Program logic...
-    tracePrint("Postgres and Redis are running.");
+    Utils::log(Utils::LogLevel::TRACE, std::cout, "Postgres and Redis are running.");
 
     // Testing
     /*{
@@ -35,7 +35,7 @@ int main() {
 }
 
 void cleanup(PGconn *conn, redisContext *context) {
-    tracePrint("Closing connections...");
+    Utils::log(Utils::LogLevel::TRACE, std::cout, "Closing connections...");
     if (conn) PQfinish(conn);
     if (context) redisFree(context);
 }
