@@ -10,8 +10,12 @@
  * Customers can also return products.
  */
 class Customer : public User {
+protected:
+    [[nodiscard]] std::string getUserType() const override;
+
 public:
     Customer(std::string name, const uint32_t &balance = 0) : User(std::move(name), balance) {
+        this->id = 1; // TODO: Generate a unique id for the Customer, remove after testing
         // Initialize other attributes...
     }
 

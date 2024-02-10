@@ -9,9 +9,13 @@
  * A supplier offers products that can be bought by customers and delivered by transporters.
  */
 class Supplier : public User {
+protected:
+    [[nodiscard]] std::string getUserType() const override;
+
 public:
     Supplier(std::string name, const uint32_t &balance = 0) : User(std::move(name), balance) {
         // Initialize other attributes...
+        id = 18; // TODO: Generate a unique id for the Supplier, remove after testing
     }
 
     /**

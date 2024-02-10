@@ -8,4 +8,4 @@
  * @param conn PostgreSQL connection
  * @param context Redis connection
  */
-void cleanup(PGconn *conn, redisContext *context);
+void cleanup(redisContext *context);

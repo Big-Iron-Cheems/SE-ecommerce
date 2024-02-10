@@ -12,130 +12,121 @@
  * DROP USER ecommerce;
  */
 
-PGconn *conn2Postgres(const std::string &dbname, const std::string &user, const std::string &password) {
+std::unique_ptr<pqxx::connection> conn2Postgres(const std::string &dbname, const std::string &user, const std::string &password) {
     std::string connInfo = "dbname=" + dbname + " user=" + user + " password=" + password;
-    PGconn *conn = PQconnectdb(connInfo.c_str());
-    if (PQstatus(conn) != CONNECTION_OK) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to connect to Postgres: ", PQerrorMessage(conn));
-        PQfinish(conn);
-        return nullptr;
+    try {
+        std::unique_ptr<pqxx::connection> conn = std::make_unique<pqxx::connection>(connInfo);
+        Utils::log(Utils::LogLevel::DEBUG, std::cout, "Connected to Postgres database '" + dbname + "' as user '" + user + "'.");
+        return conn;
+    } catch (const pqxx::broken_connection &e) {
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to connect to Postgres database '" + dbname + "' as user '" + user + "': ", e.what());
+        throw; // Rethrow the exception to propagate it to the caller
     }
-
-    return conn;
 }
 
-bool doesDatabaseExist(PGconn *conn, const std::string &databaseName) {
+bool doesDatabaseExist(std::unique_ptr<pqxx::connection> &conn, const std::string &databaseName) {
     std::string query = "SELECT 1 FROM pg_database WHERE datname = '" + databaseName + "'";
-    PGresult *res = execCommand(conn, query);
-
-    if (!res) return false;
-
-    // Check if there is at least one row (database exists)
-    bool databaseExists = (PQntuples(res) > 0);
-    PQclear(res);
-
-    return databaseExists;
-}
-
-void createDatabase(PGconn *conn, const std::string &databaseName) {
-    if (doesDatabaseExist(conn, databaseName)) Utils::log(Utils::LogLevel::TRACE, std::cout, "Database `" + databaseName + "` already exists.");
-    else {
-        if (!execCommand(conn, "CREATE DATABASE " + databaseName)) return;
-        Utils::log(Utils::LogLevel::TRACE, std::cout, "Database `" + databaseName + "` created.");
+    try {
+        pqxx::work W(*conn);
+        pqxx::result R = W.exec(query);
+        W.commit();
+        return !R.empty();
+    } catch (const std::exception &e) {
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to check if database exists: ", e.what());
+        return false;
     }
 }
 
-bool doesUserExist(PGconn *conn, const std::string &username) {
+void createDatabase(std::unique_ptr<pqxx::connection> &conn, const std::string &databaseName) {
+    if (doesDatabaseExist(conn, databaseName)) Utils::log(Utils::LogLevel::DEBUG, std::cout, "Database `" + databaseName + "` already exists.");
+    else {
+        pqxx::result R = execCommand(conn, "CREATE DATABASE " + databaseName);
+        if (R.empty()) Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to create database: `" + databaseName + "`.");
+        else Utils::log(Utils::LogLevel::DEBUG, std::cout, "Database `" + databaseName + "` created.");
+    }
+}
+
+bool doesUserExist(std::unique_ptr<pqxx::connection> &conn, const std::string &username) {
     std::string query = "SELECT 1 FROM pg_user WHERE usename = '" + username + "'";
-    PGresult *res = execCommand(conn, query);
-
-    if (!res) return false;
-
-    // Check if there is at least one row (user exists)
-    bool userExists = (PQntuples(res) > 0);
-    PQclear(res);
-
-    return userExists;
-}
-
-void createUser(PGconn *conn, const std::string &username, const std::string &password, const std::string &options) {
-    if (doesUserExist(conn, username)) Utils::log(Utils::LogLevel::TRACE, std::cout, "User `" + username + "` already exists.");
-    else {
-        if (!execCommand(conn, "CREATE USER " + username + " WITH PASSWORD '" + password + "' " + options)) return;
-        Utils::log(Utils::LogLevel::TRACE, std::cout, "User `" + username + "` created.");
+    try {
+        pqxx::work W(*conn);
+        pqxx::result R = W.exec(query);
+        W.commit();
+        return !R.empty();
+    } catch (const std::exception &e) {
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to check if user exists: ", e.what());
+        return false;
     }
 }
 
-bool doesTableExist(PGconn *conn, const std::string &tableName) {
-    std::string query = "SELECT 1 FROM pg_tables WHERE tablename = '" + tableName + "'";
-    PGresult *res = execCommand(conn, query);
-
-    if (!res) return false;
-
-    // Check if there is at least one row (table exists)
-    bool tableExists = (PQntuples(res) > 0);
-    PQclear(res);
-
-    return tableExists;
+void createUser(std::unique_ptr<pqxx::connection> &conn, const std::string &username, const std::string &password, const std::string &options) {
+    if (doesUserExist(conn, username)) Utils::log(Utils::LogLevel::DEBUG, std::cout, "User `" + username + "` already exists.");
+    else {
+        pqxx::result R = execCommand(conn, "CREATE USER " + username + " WITH PASSWORD '" + password + "' " + options);
+        if (R.empty()) Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to create user: `" + username + "`.");
+        else Utils::log(Utils::LogLevel::DEBUG, std::cout, "User `" + username + "` created.");
+    }
 }
 
-void createTable(PGconn *conn, const std::string &tableName, const std::string &columns) {
-    if (doesTableExist(conn, tableName)) Utils::log(Utils::LogLevel::TRACE, std::cout, "Table `" + tableName + "` already exists.");
+bool doesTableExist(std::unique_ptr<pqxx::connection> &conn, const std::string &tableName) {
+    std::string query = "SELECT 1 FROM pg_tables WHERE tablename = '" + tableName + "'";
+    try {
+        pqxx::work W(*conn);
+        pqxx::result R = W.exec(query);
+        W.commit();
+        return !R.empty();
+    } catch (const std::exception &e) {
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to check if table exists: ", e.what());
+        return false;
+    }
+}
+
+void createTable(std::unique_ptr<pqxx::connection> &conn, const std::string &tableName, const std::string &columns) {
+    if (doesTableExist(conn, tableName)) Utils::log(Utils::LogLevel::DEBUG, std::cout, "Table `" + tableName + "` already exists.");
     else {
-        if (!execCommand(conn, "CREATE TABLE " + tableName + " (" + columns + ")")) return;
-        Utils::log(Utils::LogLevel::TRACE, std::cout, "Table `" + tableName + "` created.");
+        pqxx::result R = execCommand(conn, "CREATE TABLE " + tableName + " (" + columns + ")");
+        if (R.empty()) Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to create table: `" + tableName + "`.");
+        else Utils::log(Utils::LogLevel::DEBUG, std::cout, "Table `" + tableName + "` created.");
     }
 }
 
 // FIXME: this does not work, it returns false even if the function exists
-bool doesFunctionExist(PGconn *conn, const std::string &functionName, const std::vector<std::string> &argTypes) {
-    // Build the query to get the function with the given name and argument types
-    std::string query = "SELECT 1 FROM pg_proc, pg_type WHERE pg_proc.proname = '" + functionName + "' AND pg_proc.proargtypes = ARRAY[";
-
-    // Add the argument types to the query
+bool doesFunctionExist(std::unique_ptr<pqxx::connection> &conn, const std::string &functionName, const std::vector<std::string> &argTypes) {
+    std::string query = "SELECT 1 FROM pg_proc, pg_type WHERE pg_proc.proname = $1 AND pg_proc.proargtypes = ARRAY[";
     for (size_t i = 0; i < argTypes.size(); ++i) {
-        query += "(SELECT oid FROM pg_type WHERE typname = '" + argTypes[i] + "')";
+        query += "(SELECT oid FROM pg_type WHERE typname = $2)";
         if (i < argTypes.size() - 1) query += ",";
     }
     query += "]::oidvector";
-
-    // Execute the query
-    PGresult *res = execCommand(conn, query);
-    if (!res) return false;
-
-    // Check if there is at least one row (function exists)
-    bool functionExists = (PQntuples(res) > 0);
-    PQclear(res);
-
-    return functionExists;
+    try {
+        pqxx::work W(*conn);
+        pqxx::result R = W.exec_params(query, functionName, argTypes);
+        W.commit();
+        return !R.empty();
+    } catch (const std::exception &e) {
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to check if function exists: ", e.what());
+        return false;
+    }
 }
 
 // TODO: actually use this once doesFunctionExist is fixed
-void createFunction(PGconn *conn,
+void createFunction(std::unique_ptr<pqxx::connection> &conn,
                     const std::string &functionName,
                     const std::vector<std::pair<std::string, std::string>> &args,
                     const std::string &returnType,
                     const std::string &body) {
-    // Get the argument types as a vector and as a string
+    // Get the argument types as a vector
     std::vector<std::string> argTypes;
-    std::string argTypesStr;
     for (const std::pair<std::string, std::string> &arg: args) {
         argTypes.push_back(arg.second);
-        argTypesStr += arg.second + ", ";
-    }
-    // Remove trailing comma and space
-    if (!argTypesStr.empty()) {
-        argTypesStr.pop_back();
-        argTypesStr.pop_back();
     }
 
     // Check if the function already exists
     if (doesFunctionExist(conn, functionName, argTypes)) {
-        Utils::log(Utils::LogLevel::TRACE, std::cout, "Function `" + functionName + "(" + argTypesStr + ")` already exists.");
+        Utils::log(Utils::LogLevel::DEBUG, std::cout, "Function `" + functionName + "` already exists.");
         return;
     }
 
-    Utils::log(Utils::LogLevel::TRACE, std::cout, "Creating function `" + functionName + "(" + argTypesStr + ")`...");
     // Start building the query
     std::string query = "CREATE OR REPLACE FUNCTION " + functionName + "(";
 
@@ -149,39 +140,88 @@ void createFunction(PGconn *conn,
     query += ") RETURNS " + returnType + " AS $$ BEGIN " + body + " END; $$ LANGUAGE plpgsql SECURITY DEFINER;";
 
     // Execute the query
-    if (!execCommand(conn, query)) return;
-    else Utils::log(Utils::LogLevel::TRACE, std::cout, "Function `" + functionName + "(" + argTypesStr + ")` created.");
+    try {
+        pqxx::work W(*conn);
+        W.exec(query);
+        W.commit();
+        Utils::log(Utils::LogLevel::DEBUG, std::cout, "Function `" + functionName + "` created.");
+    } catch (const std::exception &e) {
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to create function: ", e.what());
+    }
 }
 
-PGresult *execCommand(PGconn *conn, const std::string &command) {
-    Utils::log(Utils::LogLevel::DEBUG, std::cout, "Executing: " + command);
+pqxx::result execCommand(std::unique_ptr<pqxx::connection> &conn, const std::string &command) {
+    Utils::log(Utils::LogLevel::DEBUG, std::cout, "Executing command: ", command);
+    try {
+        pqxx::work W(*conn);
+        pqxx::result R = W.exec(command);
+        W.commit();
+        return R;
+    } catch (const std::exception &e) {
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to execute command: ", e.what());
+        return {};
+    }
+}
 
-    if (PQstatus(conn) != CONNECTION_OK) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Connection to PostgreSQL failed: ", PQerrorMessage(conn));
-        return nullptr;
+void printRows(const pqxx::result &R) {
+    if (R.empty()) {
+        Utils::log(Utils::LogLevel::TRACE, std::cout, "No results found.");
+        return;
     }
 
-    PGresult *res = PQexec(conn, command.c_str());
-    if (PQresultStatus(res) != PGRES_COMMAND_OK && PQresultStatus(res) != PGRES_TUPLES_OK) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to execute command: ", PQerrorMessage(conn));
-        PQclear(res);
-        return nullptr;
+    std::vector<std::vector<std::string>> rows;
+    std::vector<size_t> maxLengths(R.columns(), 0);
+
+    // Store column names and find maximum length of content in each column
+    std::vector<std::string> columnNames;
+    for (int i = 0; i < R.columns(); ++i) {
+        std::string columnName = R.column_name(i);
+        maxLengths[i] = std::max(maxLengths[i], columnName.size());
+        columnNames.push_back(std::move(columnName));
+    }
+    rows.push_back(std::move(columnNames));
+
+    // Store rows and find maximum length of content in each column
+    for (const auto &row: R) {
+        std::vector<std::string> rowData;
+        for (const auto &element: row) {
+            std::string value = element.c_str();
+            maxLengths[rowData.size()] = std::max(maxLengths[rowData.size()], value.size());
+            rowData.emplace_back(std::move(value));
+        }
+        rows.push_back(std::move(rowData));
     }
 
-    return res;
+    // Calculate total width
+    size_t totalWidth = std::accumulate(maxLengths.begin(), maxLengths.end(), maxLengths.size() * 3) - 1; // -1 to align the last column with the +
+
+    // Print top border
+    Utils::log(Utils::LogLevel::TRACE, std::cout, "+", std::string(totalWidth, '-'), "+");
+
+    // Print each row with adjusted column widths
+    std::ostringstream rowStream;
+    for (const auto &rowData: rows) {
+        rowStream.str("");
+        for (size_t i = 0; i < rowData.size(); ++i) {
+            rowStream << "| " << std::setw(maxLengths[i]) << std::left << rowData[i] << " ";
+        }
+        rowStream << "|";
+        Utils::log(Utils::LogLevel::TRACE, std::cout, rowStream.str());
+
+        // Print separator line after column names
+        if (&rowData == &rows.front()) Utils::log(Utils::LogLevel::TRACE, std::cout, "+", std::string(totalWidth, '-'), "+");
+    }
+
+    // Print bottom border
+    Utils::log(Utils::LogLevel::TRACE, std::cout, "+", std::string(totalWidth, '-'), "+");
 }
 
 
 // Sezione porcherie
 
-PGconn *initDatabase() {
+std::unique_ptr<pqxx::connection> initDatabase() {
     // Connect to the default 'postgres' database as the 'postgres' user
-    PGconn *conn = PQconnectdb("dbname=postgres user=postgres password=");
-    if (PQstatus(conn) != CONNECTION_OK) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to connect to Postgres database 'postgres' as user 'postgres': ", PQerrorMessage(conn));
-        PQfinish(conn);
-        return nullptr;
-    }
+    std::unique_ptr<pqxx::connection> conn = conn2Postgres("postgres", "postgres", "");
 
     // Create the 'ecommerce' user as `postgres` if it does not exist
     createUser(conn, "ecommerce", "ecommerce", "NOSUPERUSER CREATEDB NOCREATEROLE INHERIT LOGIN NOREPLICATION NOBYPASSRLS");
@@ -193,29 +233,15 @@ PGconn *initDatabase() {
 
 
     // Disconnect from the 'postgres' database as the 'postgres' user
-    PQfinish(conn);
-
     // Connect to the default 'postgres' database as the 'ecommerce' user
     conn = conn2Postgres("postgres", "ecommerce", "ecommerce");
-    if (PQstatus(conn) != CONNECTION_OK) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to connect to Postgres database 'postgres' as user 'ecommerce': ", PQerrorMessage(conn));
-        PQfinish(conn);
-        return nullptr;
-    }
 
     // Create the 'ecommerce' database as `ecommerce` if it does not exist
     createDatabase(conn, "ecommerce");
 
     // Disconnect from the 'postgres' database as the 'ecommerce' user
-    PQfinish(conn);
-
     // Connect to the 'ecommerce' database as the 'ecommerce' user
     conn = conn2Postgres("ecommerce", "ecommerce", "ecommerce");
-    if (PQstatus(conn) != CONNECTION_OK) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to connect to Postgres database 'ecommerce' as user 'ecommerce': ", PQerrorMessage(conn));
-        PQfinish(conn);
-        return nullptr;
-    }
 
     // Create the tables if they do not exist
     initTables(conn);
@@ -227,7 +253,7 @@ PGconn *initDatabase() {
     return conn;
 }
 
-void initTables(PGconn *conn) {
+void initTables(std::unique_ptr<pqxx::connection> &conn) {
 
     // Seen only by the admins
     // TODO: possibly merge user types into a single table if that is better
@@ -272,8 +298,9 @@ void initTables(PGconn *conn) {
         )"); ///<
 
 
-    // Grant permissions
+    // Grant permissions // TODO: set all perms accordingly
     execCommand(conn, "GRANT SELECT ON customers TO customer");
+    execCommand(conn, "GRANT SELECT ON suppliers TO supplier");
     // execCommand(conn, "GRANT SELECT ON suppliers TO customer, supplier, transporter");
     // execCommand(conn, "GRANT SELECT ON transporters TO customer, supplier, transporter");
     execCommand(conn, "GRANT SELECT ON products TO customer, supplier");
@@ -281,17 +308,22 @@ void initTables(PGconn *conn) {
     // execCommand(conn, "GRANT SELECT ON order_items TO customer, supplier, transporter");
 }
 
-void initFunctions(PGconn *conn) { // TODO: check beforehand if the functions already exist and skip them if they do
+void initFunctions(std::unique_ptr<pqxx::connection> &conn) { // TODO: check beforehand if the functions already exist and skip them if they do
     // Define SQL functions
     std::string setBalanceProcedureCustomer = R"(
         CREATE OR REPLACE FUNCTION set_balance_customer(customer_id INT, increase_amount INT, add BOOLEAN)
-        RETURNS VOID AS $$
+        RETURNS INT AS $$
+        DECLARE
+            new_balance INT;
         BEGIN
             IF add THEN
                 UPDATE customers SET balance = balance + increase_amount WHERE id = customer_id;
             ELSE
                 UPDATE customers SET balance = balance - increase_amount WHERE id = customer_id;
             END IF;
+
+            SELECT balance INTO new_balance FROM customers WHERE id = customer_id;
+            RETURN new_balance;
         END;
         $$ LANGUAGE plpgsql SECURITY DEFINER;
     )";
@@ -309,13 +341,18 @@ void initFunctions(PGconn *conn) { // TODO: check beforehand if the functions al
 
     std::string setBalanceProcedureSupplier = R"(
         CREATE OR REPLACE FUNCTION set_balance_supplier(supplier_id INT, increase_amount INT, add BOOLEAN)
-        RETURNS VOID AS $$
+        RETURNS INT AS $$
+        DECLARE
+            new_balance INT;
         BEGIN
             IF add THEN
                 UPDATE suppliers SET balance = balance + increase_amount WHERE id = supplier_id;
             ELSE
                 UPDATE suppliers SET balance = balance - increase_amount WHERE id = supplier_id;
             END IF;
+
+            SELECT balance INTO new_balance FROM suppliers WHERE id = supplier_id;
+            RETURN new_balance;
         END;
         $$ LANGUAGE plpgsql SECURITY DEFINER;
     )";
@@ -323,13 +360,18 @@ void initFunctions(PGconn *conn) { // TODO: check beforehand if the functions al
 
     std::string setBalanceProcedureTransporter = R"(
         CREATE OR REPLACE FUNCTION set_balance_transporter(transporter_id INT, increase_amount INT, add BOOLEAN)
-        RETURNS VOID AS $$
+        RETURNS INT AS $$
+        DECLARE
+            new_balance INT;
         BEGIN
             IF add THEN
                 UPDATE transporters SET balance = balance + increase_amount WHERE id = transporter_id;
             ELSE
                 UPDATE transporters SET balance = balance - increase_amount WHERE id = transporter_id;
             END IF;
+
+            SELECT balance INTO new_balance FROM transporters WHERE id = transporter_id;
+            RETURN new_balance;
         END;
         $$ LANGUAGE plpgsql SECURITY DEFINER;
     )";

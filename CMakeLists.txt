@@ -19,4 +19,6 @@ add_executable(ecommerce
 )
 
 # Link to redis and postgresql
-target_link_libraries(ecommerce PRIVATE -lhiredis -lpq)
+target_link_libraries(ecommerce PRIVATE -lhiredis /usr/local/lib/libpqxx.a -lpq)
+# FIXME: sudo pacman -S libpqxx and -lpqxx, once the library is updated to 7.9.0
+# Used: https://github.com/jtv/libpqxx/blob/master/BUILDING-configure.md
