@@ -1,12 +1,11 @@
 #include "rdutils.h"
 
-redisContext *conn2Redis() {
-    redisContext *context = redisConnect("localhost", 6379);
-    if (context == nullptr || context->err) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to connect to Redis: ", context ? context->errstr : "Unknown error");
-        if (context) redisFree(context);
+std::shared_ptr<sw::redis::Redis> conn2Redis() {
+    try {
+        std::shared_ptr<sw::redis::Redis> redis = std::make_shared<sw::redis::Redis>("tcp://127.0.0.1:6379");
+        return redis;
+    } catch (const sw::redis::Error &err) {
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to connect to Redis: ", err.what());
         return nullptr;
     }
-
-    return context;
 }

@@ -1,10 +1,10 @@
 #pragma once
 
 #include "../utils.h"
-#include <hiredis/hiredis.h>
+#include <sw/redis++/redis++.h>
 
 /**
  * Connect to Redis
- * @return a pointer to the connection object
+ * @return a pointer to the Redis connection object
  */
-redisContext *conn2Redis();
+std::shared_ptr<sw::redis::Redis> conn2Redis();

@@ -7,13 +7,9 @@ int main() {
     std::unique_ptr<pqxx::connection> postgresConn = initDatabase();
     if (!postgresConn) return EXIT_FAILURE;
 
-
     // Connect to Redis
-    redisContext *redisContext = conn2Redis();
-    if (!redisContext) {
-        cleanup(nullptr);
-        return EXIT_FAILURE;
-    }
+    std::shared_ptr<sw::redis::Redis> redisContext = conn2Redis();
+    if (!redisContext) return EXIT_FAILURE;
 
     // Program logic...
     Utils::log(Utils::LogLevel::TRACE, std::cout, "Postgres and Redis are running.");
@@ -34,13 +30,10 @@ int main() {
         supplier.getBalance();
     }*/
 
+    // Input loop here...
+
     // Terminating the program
-    cleanup(redisContext);
+    Utils::log(Utils::LogLevel::TRACE, std::cout, "Closing connections...");
 
     return EXIT_SUCCESS;
-}
-
-void cleanup(redisContext *context) {
-    Utils::log(Utils::LogLevel::TRACE, std::cout, "Closing connections...");
-    if (context) redisFree(context);
 }
