@@ -1,6 +1,6 @@
 CXX := g++
-CXXFLAGS := -std=c++23 -Wall -Wextra
-LDFLAGS := -lhiredis -lpq # link hiredis and libpq
+CXXFLAGS := -std=c++23 -Wall -Wextra -Wpedantic # -Werror
+LDFLAGS := -lredis++ -lhiredis -lpqxx -lpq # Link to redis and postgresql (including C++ versions)
 
 SRC_DIR := src
 OBJ_DIR := obj
@@ -13,11 +13,11 @@ EXEC := $(BIN_DIR)/ecommerce
 
 $(EXEC): $(OBJS)
 	@mkdir -p $(BIN_DIR)
-	$(CC) $(CFLAGS) $(OBJS) -o $(EXEC) $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) $(OBJS) -o $(EXEC) $(LDFLAGS)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 all: $(EXEC)
 

@@ -25,7 +25,7 @@ std::unique_ptr<pqxx::connection> conn2Postgres(const std::string &dbname, const
 }
 
 bool doesDatabaseExist(std::unique_ptr<pqxx::connection> &conn, const std::string &databaseName) {
-    std::string query = "SELECT 1 FROM pg_database WHERE datname = '" + databaseName + "'";
+    std::string query = "SELECT 1 FROM pg_database WHERE datname = " + conn->quote(databaseName);
     try {
         pqxx::work W(*conn);
         pqxx::result R = W.exec(query);
@@ -47,7 +47,7 @@ void createDatabase(std::unique_ptr<pqxx::connection> &conn, const std::string &
 }
 
 bool doesUserExist(std::unique_ptr<pqxx::connection> &conn, const std::string &username) {
-    std::string query = "SELECT 1 FROM pg_user WHERE usename = '" + username + "'";
+    std::string query = "SELECT 1 FROM pg_user WHERE usename = " + conn->quote(username);
     try {
         pqxx::work W(*conn);
         pqxx::result R = W.exec(query);
@@ -62,14 +62,14 @@ bool doesUserExist(std::unique_ptr<pqxx::connection> &conn, const std::string &u
 void createUser(std::unique_ptr<pqxx::connection> &conn, const std::string &username, const std::string &password, const std::string &options) {
     if (doesUserExist(conn, username)) Utils::log(Utils::LogLevel::DEBUG, std::cout, "User `" + username + "` already exists.");
     else {
-        pqxx::result R = execCommand(conn, "CREATE USER " + username + " WITH PASSWORD '" + password + "' " + options);
+        pqxx::result R = execCommand(conn, "CREATE USER " + username + " WITH PASSWORD " + conn->quote(password) + " " + options);
         if (R.empty()) Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to create user: `" + username + "`.");
         else Utils::log(Utils::LogLevel::DEBUG, std::cout, "User `" + username + "` created.");
     }
 }
 
 bool doesTableExist(std::unique_ptr<pqxx::connection> &conn, const std::string &tableName) {
-    std::string query = "SELECT 1 FROM pg_tables WHERE tablename = '" + tableName + "'";
+    std::string query = "SELECT 1 FROM pg_tables WHERE tablename = " + conn->quote(tableName);
     try {
         pqxx::work W(*conn);
         pqxx::result R = W.exec(query);
@@ -243,6 +243,18 @@ std::unique_ptr<pqxx::connection> initDatabase() {
     // Connect to the 'ecommerce' database as the 'ecommerce' user
     conn = conn2Postgres("ecommerce", "ecommerce", "ecommerce");
 
+    // Define types
+    std::string checkAndCreateType = R"(
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+                CREATE TYPE user_role AS ENUM ('customer', 'supplier', 'transporter');
+            END IF;
+        END
+        $$
+    )";
+    execCommand(conn, checkAndCreateType);
+
     // Create the tables if they do not exist
     initTables(conn);
 
@@ -310,24 +322,6 @@ void initTables(std::unique_ptr<pqxx::connection> &conn) {
 
 void initFunctions(std::unique_ptr<pqxx::connection> &conn) { // TODO: check beforehand if the functions already exist and skip them if they do
     // Define SQL functions
-    std::string setBalanceProcedureCustomer = R"(
-        CREATE OR REPLACE FUNCTION set_balance_customer(customer_id INT, increase_amount INT, add BOOLEAN)
-        RETURNS INT AS $$
-        DECLARE
-            new_balance INT;
-        BEGIN
-            IF add THEN
-                UPDATE customers SET balance = balance + increase_amount WHERE id = customer_id;
-            ELSE
-                UPDATE customers SET balance = balance - increase_amount WHERE id = customer_id;
-            END IF;
-
-            SELECT balance INTO new_balance FROM customers WHERE id = customer_id;
-            RETURN new_balance;
-        END;
-        $$ LANGUAGE plpgsql SECURITY DEFINER;
-    )";
-    execCommand(conn, setBalanceProcedureCustomer);
 
     // FIXME: if the types are int4, int4, bool, the function is found. Need to do mappings?
     /* createFunction(conn, "set_balance_supplier", {{"supplier_id", "INT"}, {"increase_amount", "INT"}, {"add", "BOOLEAN"}}, "VOID",
@@ -339,46 +333,49 @@ void initFunctions(std::unique_ptr<pqxx::connection> &conn) { // TODO: check bef
         END IF;
     )");*/
 
-    std::string setBalanceProcedureSupplier = R"(
-        CREATE OR REPLACE FUNCTION set_balance_supplier(supplier_id INT, increase_amount INT, add BOOLEAN)
-        RETURNS INT AS $$
+    // TODO:
+    //  - make a helper get_target_table function
+    //  - raise exception if balance would go in the negative, handle pqxx::sql_error in User
+    std::string setBalanceProcedure = R"(
+        CREATE OR REPLACE FUNCTION set_balance(user_type user_role, user_id INT, amount INT)
+            RETURNS INT AS $$
         DECLARE
             new_balance INT;
+            operation CHAR;
+            target_table VARCHAR(255);
         BEGIN
-            IF add THEN
-                UPDATE suppliers SET balance = balance + increase_amount WHERE id = supplier_id;
+            -- Determine the operation based on the sign of the amount
+            IF amount > 0 THEN
+                operation := '+';
+            ELSIF amount < 0 THEN
+                operation := '-';
             ELSE
-                UPDATE suppliers SET balance = balance - increase_amount WHERE id = supplier_id;
+                RETURN NULL;
             END IF;
 
-            SELECT balance INTO new_balance FROM suppliers WHERE id = supplier_id;
+            -- Determine the target table based on user type
+            CASE user_type
+                WHEN 'customer' THEN
+                    target_table := 'customers';
+                WHEN 'supplier' THEN
+                    target_table := 'suppliers';
+                WHEN 'transporter' THEN
+                    target_table := 'transporters';
+                ELSE
+                    RAISE EXCEPTION 'Invalid user type';
+            END CASE;
+
+            -- Update the balance in the appropriate table and retrieve the new balance
+            EXECUTE format('UPDATE %I SET balance = balance %s $1 WHERE id = $2 RETURNING balance', target_table, operation)
+            INTO new_balance
+            USING ABS(amount), user_id;  -- Use the absolute value of amount
+
             RETURN new_balance;
         END;
         $$ LANGUAGE plpgsql SECURITY DEFINER;
     )";
-    execCommand(conn, setBalanceProcedureSupplier);
-
-    std::string setBalanceProcedureTransporter = R"(
-        CREATE OR REPLACE FUNCTION set_balance_transporter(transporter_id INT, increase_amount INT, add BOOLEAN)
-        RETURNS INT AS $$
-        DECLARE
-            new_balance INT;
-        BEGIN
-            IF add THEN
-                UPDATE transporters SET balance = balance + increase_amount WHERE id = transporter_id;
-            ELSE
-                UPDATE transporters SET balance = balance - increase_amount WHERE id = transporter_id;
-            END IF;
-
-            SELECT balance INTO new_balance FROM transporters WHERE id = transporter_id;
-            RETURN new_balance;
-        END;
-        $$ LANGUAGE plpgsql SECURITY DEFINER;
-    )";
-    execCommand(conn, setBalanceProcedureTransporter);
+    execCommand(conn, setBalanceProcedure);
 
     // Grant the EXECUTE permission to the respective users
-    execCommand(conn, "GRANT EXECUTE ON FUNCTION set_balance_customer(INT, INT, BOOL) TO customer;");
-    execCommand(conn, "GRANT EXECUTE ON FUNCTION set_balance_supplier(INT, INT, BOOL) TO supplier;");
-    execCommand(conn, "GRANT EXECUTE ON FUNCTION set_balance_transporter(INT, INT, BOOL) TO transporter;");
+    execCommand(conn, "GRANT EXECUTE ON FUNCTION set_balance(user_role, INT, INT) TO customer, supplier, transporter;");
 }

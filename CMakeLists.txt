@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.27)
 project(ecommerce)
 
 set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra") #-Werror -Wpedantic
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic") #-Werror
 
 # Specify the directories for the binary and object files
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
@@ -19,6 +19,4 @@ add_executable(ecommerce
 )
 
 # Link to redis and postgresql (including C++ versions)
-target_link_libraries(ecommerce PRIVATE -lredis++ -lhiredis /usr/local/lib/libpqxx.a -lpq)
-# FIXME: sudo pacman -S libpqxx and -lpqxx, once the library is updated to 7.9.0
-# Used: https://github.com/jtv/libpqxx/blob/master/BUILDING-configure.md
+target_link_libraries(ecommerce PRIVATE -lredis++ -lhiredis -lpqxx -lpq)

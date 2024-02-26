@@ -15,20 +15,21 @@ int main() {
     Utils::log(Utils::LogLevel::TRACE, std::cout, "Postgres and Redis are running.");
 
     // Testing
-    /*    {
-        Customer customer("Gigio", 100);
-        customer.searchProduct(std::nullopt, std::nullopt, std::nullopt, std::nullopt, "amount", true);
-        customer.getBalance();
-        customer.setBalance(180, true);
-        customer.getBalance();
-        customer.setBalance(150, false);
-        customer.getBalance();
+    {
+        Customer customer("Gigio");
+        // Customer customer2("Marco");
+        // customer.searchProduct("mele", std::nullopt, std::nullopt, std::nullopt, "amount", true);
+        // customer.getBalance();
+        // customer.setBalance(0);
+        // customer.getBalance();
+        // customer.setBalance(-70);
+        // customer.getBalance();
 
-        Supplier supplier("Pallo", 147);
+        Supplier supplier("Pallo");
         supplier.getBalance();
-        supplier.setBalance(100, true);
+        supplier.setBalance(100);
         supplier.getBalance();
-    }*/
+    }
 
     // Input loop here...
 

@@ -14,4 +14,4 @@ std::string Transporter::toString() const {
 
 void Transporter::getBalance() const { User::getBalance(); }
 
-void Transporter::setBalance(const uint32_t &balanceChange, bool add) { User::setBalance(balanceChange, add); }
+void Transporter::setBalance(const int32_t &balanceChange) { User::setBalance(balanceChange); }

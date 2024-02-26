@@ -14,4 +14,4 @@ std::string Supplier::toString() const {
 
 void Supplier::getBalance() const { User::getBalance(); }
 
-void Supplier::setBalance(const uint32_t &balanceChange, bool add) { User::setBalance(balanceChange, add); }
+void Supplier::setBalance(const int32_t &balanceChange) { User::setBalance(balanceChange); }

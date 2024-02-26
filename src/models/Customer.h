@@ -14,10 +14,7 @@ protected:
     [[nodiscard]] std::string getUserType() const override;
 
 public:
-    Customer(std::string name, const uint32_t &balance = 0) : User(std::move(name), balance) {
-        this->id = 1; // TODO: Generate a unique id for the Customer, remove after testing
-        // Initialize other attributes...
-    }
+    Customer(std::string name) : User(std::move(name)) { connect2db(); }
 
     /**
      * @return a string representation of the Customer.
@@ -40,7 +37,7 @@ public:
 
     void getBalance() const override;
 
-    void setBalance(const uint32_t &balanceChange, bool add) override;
+    void setBalance(const int32_t &balanceChange) override;
 
     // Product related methods
 

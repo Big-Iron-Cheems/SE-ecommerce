@@ -14,7 +14,7 @@ std::string Customer::toString() const {
 
 void Customer::getBalance() const { User::getBalance(); }
 
-void Customer::setBalance(const uint32_t &balanceChange, bool add) { User::setBalance(balanceChange, add); }
+void Customer::setBalance(const int32_t &balanceChange) { User::setBalance(balanceChange); }
 
 void Customer::searchProduct(const std::optional<std::string> &name,
                              const std::optional<std::string> &supplierUsername,
@@ -31,8 +31,8 @@ void Customer::searchProduct(const std::optional<std::string> &name,
         std::string filters;
 
         // Filters
-        if (name.has_value()) filters += "name LIKE '%" + name.value() + "%' AND ";
-        if (supplierUsername.has_value()) filters += "supplier_username LIKE '%" + supplierUsername.value() + "%' AND ";
+        if (name.has_value()) filters += "name LIKE " + conn->quote("%" + name.value() + "%") + " AND ";
+        if (supplierUsername.has_value()) filters += "supplier_username LIKE " + conn->quote("%" + supplierUsername.value() + "%") + " AND ";
         if (priceLowerBound.has_value()) filters += "price >= " + std::to_string(priceLowerBound.value()) + " AND ";
         if (priceUpperBound.has_value()) filters += "price <= " + std::to_string(priceUpperBound.value()) + " AND ";
 
