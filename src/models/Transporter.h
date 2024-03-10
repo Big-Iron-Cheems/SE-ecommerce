@@ -10,10 +10,21 @@
  */
 class Transporter : public User {
 protected:
-    [[nodiscard]] std::string getUserType() const override;
+    [[nodiscard]] UserType getUserType() const override;
 
 public:
-    Transporter(std::string name) : User(std::move(name)) { connect2db(); }
+    explicit Transporter(std::string name) : User(std::move(name)) {
+        try {
+            User::login();
+            loggedInSuccessfully = true;
+        } catch (const std::exception &e) {
+            Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to create a Transporter: ", e.what());
+        }
+    }
+
+    ~Transporter() {
+        if (loggedInSuccessfully) User::logout();
+    };
 
     /**
      * @return a string representation of the Transporter.
@@ -21,12 +32,6 @@ public:
     [[nodiscard]] std::string toString() const override;
 
     // Transporter methods...
-
-    // Balance related methods
-
-    void getBalance() const override;
-
-    void setBalance(const int32_t &balanceChange) override;
 
     // Product related methods
 

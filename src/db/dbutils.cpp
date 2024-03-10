@@ -68,6 +68,40 @@ void createUser(std::unique_ptr<pqxx::connection> &conn, const std::string &user
     }
 }
 
+bool doesTypeExist(std::unique_ptr<pqxx::connection> &conn, const std::string &typeName) {
+    std::string query = "SELECT 1 FROM pg_type WHERE typname = " + conn->quote(typeName);
+    try {
+        pqxx::work W(*conn);
+        pqxx::result R = W.exec(query);
+        W.commit();
+        return !R.empty();
+    } catch (const std::exception &e) {
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to check if type exists: ", e.what());
+        return false;
+    }
+}
+
+void createType(std::unique_ptr<pqxx::connection> &conn, const std::string &typeName, const std::string &typeDef) {
+    // Check if the type already exists
+    if (doesTypeExist(conn, typeName)) {
+        Utils::log(Utils::LogLevel::DEBUG, std::cout, "Type `" + typeName + "` already exists.");
+        return;
+    }
+
+    // Build the query
+    std::string query = "CREATE TYPE " + typeName + " AS " + typeDef + ";";
+
+    // Execute the query
+    try {
+        pqxx::work W(*conn);
+        W.exec(query);
+        W.commit();
+        Utils::log(Utils::LogLevel::DEBUG, std::cout, "Type `" + typeName + "` created.");
+    } catch (const std::exception &e) {
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to create type: ", e.what());
+    }
+}
+
 bool doesTableExist(std::unique_ptr<pqxx::connection> &conn, const std::string &tableName) {
     std::string query = "SELECT 1 FROM pg_tables WHERE tablename = " + conn->quote(tableName);
     try {
@@ -90,26 +124,27 @@ void createTable(std::unique_ptr<pqxx::connection> &conn, const std::string &tab
     }
 }
 
-// FIXME: this does not work, it returns false even if the function exists
 bool doesFunctionExist(std::unique_ptr<pqxx::connection> &conn, const std::string &functionName, const std::vector<std::string> &argTypes) {
-    std::string query = "SELECT 1 FROM pg_proc, pg_type WHERE pg_proc.proname = $1 AND pg_proc.proargtypes = ARRAY[";
+    std::string query = "SELECT to_regprocedure($1)";
+    std::string functionSignature = functionName + "(";
+
     for (size_t i = 0; i < argTypes.size(); ++i) {
-        query += "(SELECT oid FROM pg_type WHERE typname = $2)";
-        if (i < argTypes.size() - 1) query += ",";
+        functionSignature += argTypes[i];
+        if (i < argTypes.size() - 1) functionSignature += ", ";
     }
-    query += "]::oidvector";
+    functionSignature += ")";
+
     try {
         pqxx::work W(*conn);
-        pqxx::result R = W.exec_params(query, functionName, argTypes);
+        pqxx::result R = W.exec_params(query, functionSignature);
         W.commit();
-        return !R.empty();
+        return !R[0][0].is_null();
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to check if function exists: ", e.what());
         return false;
     }
 }
 
-// TODO: actually use this once doesFunctionExist is fixed
 void createFunction(std::unique_ptr<pqxx::connection> &conn,
                     const std::string &functionName,
                     const std::vector<std::pair<std::string, std::string>> &args,
@@ -127,17 +162,13 @@ void createFunction(std::unique_ptr<pqxx::connection> &conn,
         return;
     }
 
-    // Start building the query
+    // Build the query
     std::string query = "CREATE OR REPLACE FUNCTION " + functionName + "(";
-
-    // Add the arguments to the query
     for (size_t i = 0; i < args.size(); ++i) {
         query += args[i].first + " " + args[i].second;
         if (i < args.size() - 1) query += ", ";
     }
-
-    // Finish building the query
-    query += ") RETURNS " + returnType + " AS $$ BEGIN " + body + " END; $$ LANGUAGE plpgsql SECURITY DEFINER;";
+    query += ") RETURNS " + returnType + " AS $$" + body + "\n$$ LANGUAGE plpgsql SECURITY DEFINER;";
 
     // Execute the query
     try {
@@ -151,7 +182,7 @@ void createFunction(std::unique_ptr<pqxx::connection> &conn,
 }
 
 pqxx::result execCommand(std::unique_ptr<pqxx::connection> &conn, const std::string &command) {
-    Utils::log(Utils::LogLevel::DEBUG, std::cout, "Executing command: ", command);
+    Utils::log(Utils::LogLevel::DEBUG, std::cout, "Executing: ", command);
     try {
         pqxx::work W(*conn);
         pqxx::result R = W.exec(command);
@@ -185,7 +216,7 @@ void printRows(const pqxx::result &R) {
     for (const auto &row: R) {
         std::vector<std::string> rowData;
         for (const auto &element: row) {
-            std::string value = element.c_str();
+            std::string value = element.as<std::string>();
             maxLengths[rowData.size()] = std::max(maxLengths[rowData.size()], value.size());
             rowData.emplace_back(std::move(value));
         }
@@ -195,27 +226,73 @@ void printRows(const pqxx::result &R) {
     // Calculate total width
     size_t totalWidth = std::accumulate(maxLengths.begin(), maxLengths.end(), maxLengths.size() * 3) - 1; // -1 to align the last column with the +
 
+    std::ostringstream output;
+
     // Print top border
-    Utils::log(Utils::LogLevel::TRACE, std::cout, "+", std::string(totalWidth, '-'), "+");
+    output << "\n+" << std::string(totalWidth, '-') << "+\n";
 
     // Print each row with adjusted column widths
-    std::ostringstream rowStream;
     for (const auto &rowData: rows) {
-        rowStream.str("");
         for (size_t i = 0; i < rowData.size(); ++i) {
-            rowStream << "| " << std::setw(maxLengths[i]) << std::left << rowData[i] << " ";
+            output << "| " << std::setw(maxLengths[i]) << std::left << rowData[i] << " ";
         }
-        rowStream << "|";
-        Utils::log(Utils::LogLevel::TRACE, std::cout, rowStream.str());
+        output << "|\n";
 
         // Print separator line after column names
-        if (&rowData == &rows.front()) Utils::log(Utils::LogLevel::TRACE, std::cout, "+", std::string(totalWidth, '-'), "+");
+        if (&rowData == &rows.front()) output << "+" << std::string(totalWidth, '-') << "+\n";
     }
 
     // Print bottom border
-    Utils::log(Utils::LogLevel::TRACE, std::cout, "+", std::string(totalWidth, '-'), "+");
+    output << "+" << std::string(totalWidth, '-') << "+";
+
+    // Print the output string once at the end
+    Utils::log(Utils::LogLevel::TRACE, std::cout, output.str());
 }
 
+void printRow(const pqxx::row &row) {
+    std::vector<std::string> columnNames;
+    std::vector<std::string> values;
+    std::vector<size_t> maxLengths(row.size(), 0);
+
+    // Store column names, values and find maximum length of content in each column
+    for (const auto &field: row) {
+        std::string columnName = field.name();
+        std::string value = field.as<std::string>();
+        maxLengths[columnNames.size()] = std::max({maxLengths[columnNames.size()], columnName.size(), value.size()});
+        columnNames.push_back(std::move(columnName));
+        values.push_back(std::move(value));
+    }
+
+    // Calculate total width
+    size_t totalWidth = std::accumulate(maxLengths.begin(), maxLengths.end(), maxLengths.size() * 3) - 1; // -1 to align the last column with the +
+
+    // Prepare output stream
+    std::ostringstream output;
+
+    // Print top border
+    output << "\n+" << std::string(totalWidth, '-') << "+\n";
+
+    // Print column names with adjusted column widths
+    for (size_t i = 0; i < columnNames.size(); ++i) {
+        output << "| " << std::setw(maxLengths[i]) << std::left << columnNames[i] << " ";
+    }
+    output << "|\n";
+
+    // Print separator line
+    output << "+" << std::string(totalWidth, '-') << "+\n";
+
+    // Print row values with adjusted column widths
+    for (size_t i = 0; i < values.size(); ++i) {
+        output << "| " << std::setw(maxLengths[i]) << std::left << values[i] << " ";
+    }
+    output << "|\n";
+
+    // Print bottom border
+    output << "+" << std::string(totalWidth, '-') << "+";
+
+    // Print the output string once at the end
+    Utils::log(Utils::LogLevel::TRACE, std::cout, output.str());
+}
 
 // Sezione porcherie
 
@@ -231,7 +308,6 @@ std::unique_ptr<pqxx::connection> initDatabase() {
     createUser(conn, "supplier", "supplier", "NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT LOGIN NOREPLICATION NOBYPASSRLS");
     createUser(conn, "transporter", "transporter", "NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT LOGIN NOREPLICATION NOBYPASSRLS");
 
-
     // Disconnect from the 'postgres' database as the 'postgres' user
     // Connect to the default 'postgres' database as the 'ecommerce' user
     conn = conn2Postgres("postgres", "ecommerce", "ecommerce");
@@ -244,16 +320,7 @@ std::unique_ptr<pqxx::connection> initDatabase() {
     conn = conn2Postgres("ecommerce", "ecommerce", "ecommerce");
 
     // Define types
-    std::string checkAndCreateType = R"(
-        DO $$
-        BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
-                CREATE TYPE user_role AS ENUM ('customer', 'supplier', 'transporter');
-            END IF;
-        END
-        $$
-    )";
-    execCommand(conn, checkAndCreateType);
+    initTypes(conn);
 
     // Create the tables if they do not exist
     initTables(conn);
@@ -265,13 +332,16 @@ std::unique_ptr<pqxx::connection> initDatabase() {
     return conn;
 }
 
-void initTables(std::unique_ptr<pqxx::connection> &conn) {
+void initTypes(std::unique_ptr<pqxx::connection> &conn) {
+    createType(conn, "user_role", "ENUM ('customer', 'supplier', 'transporter')");
+}
 
+void initTables(std::unique_ptr<pqxx::connection> &conn) {
     // Seen only by the admins
     // TODO: possibly merge user types into a single table if that is better
-    createTable(conn, "customers", "id SERIAL PRIMARY KEY, username VARCHAR(255) UNIQUE NOT NULL, balance INT NOT NULL");
-    createTable(conn, "suppliers", "id SERIAL PRIMARY KEY, username VARCHAR(255) UNIQUE NOT NULL, balance INT NOT NULL");
-    createTable(conn, "transporters", "id SERIAL PRIMARY KEY, username VARCHAR(255) UNIQUE NOT NULL, balance INT NOT NULL");
+    createTable(conn, "customers", "id SERIAL PRIMARY KEY, username VARCHAR(255) UNIQUE NOT NULL, balance INT NOT NULL, logged_in BOOL NOT NULL DEFAULT FALSE");
+    createTable(conn, "suppliers", "id SERIAL PRIMARY KEY, username VARCHAR(255) UNIQUE NOT NULL, balance INT NOT NULL, logged_in BOOL NOT NULL DEFAULT FALSE");
+    createTable(conn, "transporters", "id SERIAL PRIMARY KEY, username VARCHAR(255) UNIQUE NOT NULL, balance INT NOT NULL, logged_in BOOL NOT NULL DEFAULT FALSE");
     // createTable(conn, "users", "id SERIAL PRIMARY KEY, username VARCHAR(255) UNIQUE NOT NULL, balance INT NOT NULL, user_type VARCHAR(255) NOT NULL");
 
     // Seen by customers and suppliers
@@ -283,8 +353,7 @@ void initTables(std::unique_ptr<pqxx::connection> &conn) {
             amount INT NOT NULL,
             description VARCHAR(255) NOT NULL,
             FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
-        )"); ///<
-
+    )"); ///< Products offered by suppliers
     createTable(conn, "orders", R"(
             id SERIAL PRIMARY KEY,
             customer_id INT NOT NULL,
@@ -295,8 +364,7 @@ void initTables(std::unique_ptr<pqxx::connection> &conn) {
             timestamp TIMESTAMP NOT NULL,
             FOREIGN KEY (customer_id) REFERENCES customers(id),
             FOREIGN KEY (transporter_id) REFERENCES transporters(id)
-        )"); ///<
-
+    )"); ///< Orders placed by customers
     createTable(conn, "order_items", R"(
             id SERIAL PRIMARY KEY,
             order_id INT NOT NULL,
@@ -307,12 +375,12 @@ void initTables(std::unique_ptr<pqxx::connection> &conn) {
             FOREIGN KEY (order_id) REFERENCES orders(id),
             FOREIGN KEY (product_id) REFERENCES products(id),
             FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
-        )"); ///<
-
+    )"); ///< Products listed in an order
 
     // Grant permissions // TODO: set all perms accordingly
     execCommand(conn, "GRANT SELECT ON customers TO customer");
     execCommand(conn, "GRANT SELECT ON suppliers TO supplier");
+    execCommand(conn, "GRANT SELECT ON transporters TO transporter");
     // execCommand(conn, "GRANT SELECT ON suppliers TO customer, supplier, transporter");
     // execCommand(conn, "GRANT SELECT ON transporters TO customer, supplier, transporter");
     execCommand(conn, "GRANT SELECT ON products TO customer, supplier");
@@ -320,62 +388,76 @@ void initTables(std::unique_ptr<pqxx::connection> &conn) {
     // execCommand(conn, "GRANT SELECT ON order_items TO customer, supplier, transporter");
 }
 
-void initFunctions(std::unique_ptr<pqxx::connection> &conn) { // TODO: check beforehand if the functions already exist and skip them if they do
-    // Define SQL functions
-
-    // FIXME: if the types are int4, int4, bool, the function is found. Need to do mappings?
-    /* createFunction(conn, "set_balance_supplier", {{"supplier_id", "INT"}, {"increase_amount", "INT"}, {"add", "BOOLEAN"}}, "VOID",
-                   R"(
-        IF add THEN
-            UPDATE suppliers SET balance = balance + increase_amount WHERE id = supplier_id;
-        ELSE
-            UPDATE suppliers SET balance = balance - increase_amount WHERE id = supplier_id;
-        END IF;
-    )");*/
-
-    // TODO:
-    //  - make a helper get_target_table function
-    //  - raise exception if balance would go in the negative, handle pqxx::sql_error in User
-    std::string setBalanceProcedure = R"(
-        CREATE OR REPLACE FUNCTION set_balance(user_type user_role, user_id INT, amount INT)
-            RETURNS INT AS $$
-        DECLARE
-            new_balance INT;
-            operation CHAR;
-            target_table VARCHAR(255);
-        BEGIN
-            -- Determine the operation based on the sign of the amount
-            IF amount > 0 THEN
-                operation := '+';
-            ELSIF amount < 0 THEN
-                operation := '-';
+void initFunctions(std::unique_ptr<pqxx::connection> &conn) {
+    createFunction(conn, "get_target_table", {{"user_type", "user_role"}}, "VARCHAR(255)", R"(
+    DECLARE
+        target_table VARCHAR(255);
+    BEGIN
+        -- Determine the target table based on user type
+        CASE user_type
+            WHEN 'customer' THEN
+                target_table := 'customers';
+            WHEN 'supplier' THEN
+                target_table := 'suppliers';
+            WHEN 'transporter' THEN
+                target_table := 'transporters';
             ELSE
-                RETURN NULL;
-            END IF;
+                RAISE EXCEPTION 'Invalid user type';
+        END CASE;
 
-            -- Determine the target table based on user type
-            CASE user_type
-                WHEN 'customer' THEN
-                    target_table := 'customers';
-                WHEN 'supplier' THEN
-                    target_table := 'suppliers';
-                WHEN 'transporter' THEN
-                    target_table := 'transporters';
-                ELSE
-                    RAISE EXCEPTION 'Invalid user type';
-            END CASE;
+        RETURN target_table;
+    END;)"); ///< Determine the target table based on user type
+    createFunction(conn, "insert_user", {{"user_type", "user_role"}, {"username", "VARCHAR"}}, "INT", R"(
+    DECLARE
+        new_id INT;
+    BEGIN
+        -- Insert a new user into the appropriate table
+        EXECUTE format('INSERT INTO %I (username, balance, logged_in) VALUES ($1, 0, true) RETURNING id', get_target_table(user_type))
+        INTO new_id
+        USING username;
 
-            -- Update the balance in the appropriate table and retrieve the new balance
-            EXECUTE format('UPDATE %I SET balance = balance %s $1 WHERE id = $2 RETURNING balance', target_table, operation)
-            INTO new_balance
-            USING ABS(amount), user_id;  -- Use the absolute value of amount
+        RETURN new_id;
+    END;)"); ///< Insert a new user into the appropriate table
+    createFunction(conn, "set_logged_in", {{"user_type", "user_role"}, {"user_id", "INT"}, {"is_logged_in", "BOOL"}}, "VOID", R"(
+    BEGIN
+        -- Update the logged_in field in the appropriate table
+        EXECUTE format('UPDATE %I SET logged_in = $1 WHERE id = $2', get_target_table(user_type))
+        USING is_logged_in, user_id;
+    END;)"); ///< Update the logged_in field in the appropriate table
+    createFunction(conn, "set_balance", {{"user_type", "user_role"}, {"user_id", "INT"}, {"amount", "INT"}}, "INT", R"(
+    DECLARE
+        new_balance INT;
+        operation CHAR;
+    BEGIN
+        -- Determine the operation based on the sign of the amount
+        IF amount > 0 THEN
+            operation := '+';
+        ELSIF amount < 0 THEN
+            operation := '-';
+        ELSE
+            RETURN NULL;
+        END IF;
 
-            RETURN new_balance;
-        END;
-        $$ LANGUAGE plpgsql SECURITY DEFINER;
-    )";
-    execCommand(conn, setBalanceProcedure);
+        -- Calculate the new balance
+        EXECUTE format('SELECT balance %s $1 FROM %I WHERE id = $2', operation, get_target_table(user_type))
+        INTO new_balance
+        USING ABS(amount), user_id;  -- Use the absolute value of amount
+
+        -- Check if the new balance would be negative
+        IF new_balance < 0 THEN
+            RAISE EXCEPTION 'New balance would be negative';
+        END IF;
+
+        -- Update the balance in the appropriate table and retrieve the new balance
+        EXECUTE format('UPDATE %I SET balance = balance %s $1 WHERE id = $2 RETURNING balance', target_table, operation)
+        INTO new_balance
+        USING ABS(amount), user_id;  -- Use the absolute value of amount
+
+        RETURN new_balance;
+    END;)"); ///< Update the balance in the appropriate table and retrieve the new balance
 
     // Grant the EXECUTE permission to the respective users
+    execCommand(conn, "GRANT EXECUTE ON FUNCTION insert_user(user_role, VARCHAR) TO customer, supplier, transporter;");
+    execCommand(conn, "GRANT EXECUTE ON FUNCTION set_logged_in(user_role, INT, BOOL) TO customer, supplier, transporter;");
     execCommand(conn, "GRANT EXECUTE ON FUNCTION set_balance(user_role, INT, INT) TO customer, supplier, transporter;");
 }

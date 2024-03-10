@@ -11,10 +11,21 @@
  */
 class Customer : public User {
 protected:
-    [[nodiscard]] std::string getUserType() const override;
+    [[nodiscard]] UserType getUserType() const override;
 
 public:
-    Customer(std::string name) : User(std::move(name)) { connect2db(); }
+    explicit Customer(std::string name) : User(std::move(name)) {
+        try {
+            User::login();
+            loggedInSuccessfully = true;
+        } catch (const std::exception &e) {
+            Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to create a Customer: ", e.what());
+        }
+    };
+
+    ~Customer() {
+        if (loggedInSuccessfully) User::logout();
+    };
 
     /**
      * @return a string representation of the Customer.
@@ -32,12 +43,6 @@ public:
      * - search for a product
      *
      */
-
-    // Balance related methods
-
-    void getBalance() const override;
-
-    void setBalance(const int32_t &balanceChange) override;
 
     // Product related methods
 

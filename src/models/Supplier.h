@@ -10,14 +10,21 @@
  */
 class Supplier : public User {
 protected:
-    [[nodiscard]] std::string getUserType() const override;
+    [[nodiscard]] UserType getUserType() const override;
 
 public:
-    Supplier(std::string name) : User(std::move(name)) {
-        // Initialize other attributes...
-        id = 18; // TODO: Generate a unique id for the Supplier, remove after testing
-        connect2db();
+    explicit Supplier(std::string name) : User(std::move(name)) {
+        try {
+            User::login();
+            loggedInSuccessfully = true;
+        } catch (const std::exception &e) {
+            Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to create a Supplier: ", e.what());
+        }
     }
+
+    ~Supplier() {
+        if (loggedInSuccessfully) User::logout();
+    };
 
     /**
      * @return a string representation of the Supplier.
@@ -25,13 +32,6 @@ public:
     [[nodiscard]] std::string toString() const override;
 
     // Supplier methods...
-
-    // Balance related methods
-
-    void getBalance() const override;
-
-    void setBalance(const int32_t &balanceChange) override;
-
     // Product related methods
 
     /**

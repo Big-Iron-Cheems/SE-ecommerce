@@ -1,6 +1,7 @@
 #include "main.h"
 #include "models/Customer.h"
 #include "models/Supplier.h"
+#include "models/Transporter.h"
 
 int main() {
     // Connect to PostgreSQL
@@ -17,21 +18,29 @@ int main() {
     // Testing
     {
         Customer customer("Gigio");
+        // Customer customer = Customer("Gigio");
+        Supplier supplier("Piero");
+        Transporter transporter("Pippo");
+        // customer.setBalance(-1);
+        // customer.getBalance();
         // Customer customer2("Marco");
-        // customer.searchProduct("mele", std::nullopt, std::nullopt, std::nullopt, "amount", true);
-        // customer.getBalance();
-        // customer.setBalance(0);
-        // customer.getBalance();
-        // customer.setBalance(-70);
-        // customer.getBalance();
+        customer.searchProduct("mele", std::nullopt, std::nullopt, std::nullopt, "amount", true);
+        // customer2.getBalance();
+        // customer2.setBalance(100);
+        // customer2.getBalance();
+        // customer2.setBalance(-70);
+        // customer2.getBalance();
 
-        Supplier supplier("Pallo");
-        supplier.getBalance();
-        supplier.setBalance(100);
-        supplier.getBalance();
+        // Customer customer2err("Gigio");
+        // Customer customer3("Marco");
+        // Customer customer4err("Marco");
+        // Customer customer5("Pippo");
+
+        // Supplier supplier("Pallo");
+        // supplier.getBalance();
+        // supplier.setBalance(100);
+        // supplier.getBalance();
     }
-
-    // Input loop here...
 
     // Terminating the program
     Utils::log(Utils::LogLevel::TRACE, std::cout, "Closing connections...");

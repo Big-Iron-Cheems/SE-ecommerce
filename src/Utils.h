@@ -1,13 +1,10 @@
 #pragma once
 
 #include <iostream>
-#include <map>
 #include <sstream>
 
 class Utils {
 private:
-    Utils() = default; // Private constructor
-
     /**
      * ANSI color codes.
      */
@@ -16,7 +13,7 @@ private:
     /**
      * Returns the ANSI color code for the specified color.
      */
-    constexpr static const char *color(Color color) {
+    constexpr static std::string color(Color color) {
         switch (color) {
             case Color::RED: return "\033[1;31m";
             case Color::GRN: return "\033[1;32m";
@@ -27,13 +24,22 @@ private:
             case Color::WHT: return "\033[1;37m";
             case Color::RST: return "\033[0m";
         }
-        return nullptr; // To silence compiler warning
+        throw std::invalid_argument("Invalid color value"); // To silence compiler warning
     }
 
 public:
-    Utils(const Utils &) = delete; ///< Copy constructor - deleted
+    Utils() = delete; ///< Default constructor - deleted
 
-    Utils &operator=(const Utils &) = delete; ///< Assignment operator - deleted
+    Utils(const Utils &other) = delete; ///< Copy constructor - deleted
+
+    Utils(Utils &&other) = delete; ///< Move constructor - deleted
+
+    Utils &operator=(const Utils &other) = delete; ///< Copy assignment operator - deleted
+
+    Utils &operator=(Utils &&other) = delete; ///< Move assignment operator - deleted
+
+    ~Utils() = delete; ///< Destructor - deleted
+
 
     /**
      * Available logging levels.

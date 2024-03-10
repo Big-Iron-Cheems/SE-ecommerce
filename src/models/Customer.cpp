@@ -1,6 +1,6 @@
 #include "Customer.h"
 
-std::string Customer::getUserType() const { return "customer"; }
+User::UserType Customer::getUserType() const { return User::UserType::CUSTOMER; }
 
 std::string Customer::toString() const {
     std::ostringstream oss;
@@ -11,10 +11,6 @@ std::string Customer::toString() const {
         << "}";
     return oss.str();
 }
-
-void Customer::getBalance() const { User::getBalance(); }
-
-void Customer::setBalance(const int32_t &balanceChange) { User::setBalance(balanceChange); }
 
 void Customer::searchProduct(const std::optional<std::string> &name,
                              const std::optional<std::string> &supplierUsername,

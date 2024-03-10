@@ -1,6 +1,6 @@
 #include "Transporter.h"
 
-std::string Transporter::getUserType() const { return "Transporter"; }
+User::UserType Transporter::getUserType() const { return User::UserType::TRANSPORTER; }
 
 std::string Transporter::toString() const {
     std::ostringstream oss;
@@ -11,7 +11,3 @@ std::string Transporter::toString() const {
         << "}";
     return oss.str();
 }
-
-void Transporter::getBalance() const { User::getBalance(); }
-
-void Transporter::setBalance(const int32_t &balanceChange) { User::setBalance(balanceChange); }

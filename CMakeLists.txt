@@ -12,10 +12,11 @@ add_executable(ecommerce
         src/main.cpp
         src/db/dbutils.cpp
         src/redis/rdutils.cpp
+        src/models/User.cpp
         src/models/Customer.cpp
         src/models/Supplier.cpp
         src/models/Transporter.cpp
-        src/utils.cpp
+        src/Utils.cpp
 )
 
 # Link to redis and postgresql (including C++ versions)

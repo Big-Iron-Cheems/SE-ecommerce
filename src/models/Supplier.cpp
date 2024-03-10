@@ -1,6 +1,6 @@
 #include "Supplier.h"
 
-std::string Supplier::getUserType() const { return "supplier"; }
+User::UserType Supplier::getUserType() const { return User::UserType::SUPPLIER; }
 
 std::string Supplier::toString() const {
     std::ostringstream oss;
@@ -11,7 +11,3 @@ std::string Supplier::toString() const {
         << "}";
     return oss.str();
 }
-
-void Supplier::getBalance() const { User::getBalance(); }
-
-void Supplier::setBalance(const int32_t &balanceChange) { User::setBalance(balanceChange); }

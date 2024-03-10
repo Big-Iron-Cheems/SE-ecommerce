@@ -1,6 +1,6 @@
 #pragma once
 
+#include "../Utils.h"
 #include "../db/dbutils.h"
-#include "../utils.h"
 #include <cstdint>
 #include <optional>
