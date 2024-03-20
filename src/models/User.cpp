@@ -107,9 +107,9 @@ void User::getBalance() const {
         std::string query = "SELECT balance FROM " + userType + "s WHERE id = " + std::to_string(id) + ";";
 
         // Execute the query
-        pqxx::work W(*conn);
-        pqxx::result R = W.exec(query);
-        W.commit();
+        pqxx::work tx(*conn);
+        pqxx::result R = tx.exec(query);
+        tx.commit();
 
         // Print the result
         if (!R.empty()) Utils::log(Utils::LogLevel::TRACE, std::cout, "Balance: ", R[0][0].as<std::string>());
@@ -130,9 +130,9 @@ void User::setBalance(const int32_t &balanceChange) {
         std::string query = "SELECT set_balance(" + conn->quote(userType) + ", " + std::to_string(id) + ", " + std::to_string(balanceChange) + ");";
 
         // Execute the query
-        pqxx::work W(*conn);
-        pqxx::result R = W.exec(query);
-        W.commit();
+        pqxx::work tx(*conn);
+        pqxx::result R = tx.exec(query);
+        tx.commit();
 
         // Print the result
         if (!R.empty() && !R[0][0].is_null()) Utils::log(Utils::LogLevel::TRACE, std::cout, "Balance modified to ", R[0][0].as<std::string>());

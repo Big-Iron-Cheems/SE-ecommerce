@@ -27,9 +27,9 @@ std::unique_ptr<pqxx::connection> conn2Postgres(const std::string &dbname, const
 bool doesDatabaseExist(std::unique_ptr<pqxx::connection> &conn, const std::string &databaseName) {
     std::string query = "SELECT 1 FROM pg_database WHERE datname = " + conn->quote(databaseName);
     try {
-        pqxx::work W(*conn);
-        pqxx::result R = W.exec(query);
-        W.commit();
+        pqxx::work tx(*conn);
+        pqxx::result R = tx.exec(query);
+        tx.commit();
         return !R.empty();
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to check if database exists: ", e.what());
@@ -49,9 +49,9 @@ void createDatabase(std::unique_ptr<pqxx::connection> &conn, const std::string &
 bool doesUserExist(std::unique_ptr<pqxx::connection> &conn, const std::string &username) {
     std::string query = "SELECT 1 FROM pg_user WHERE usename = " + conn->quote(username);
     try {
-        pqxx::work W(*conn);
-        pqxx::result R = W.exec(query);
-        W.commit();
+        pqxx::work tx(*conn);
+        pqxx::result R = tx.exec(query);
+        tx.commit();
         return !R.empty();
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to check if user exists: ", e.what());
@@ -71,9 +71,9 @@ void createUser(std::unique_ptr<pqxx::connection> &conn, const std::string &user
 bool doesTypeExist(std::unique_ptr<pqxx::connection> &conn, const std::string &typeName) {
     std::string query = "SELECT 1 FROM pg_type WHERE typname = " + conn->quote(typeName);
     try {
-        pqxx::work W(*conn);
-        pqxx::result R = W.exec(query);
-        W.commit();
+        pqxx::work tx(*conn);
+        pqxx::result R = tx.exec(query);
+        tx.commit();
         return !R.empty();
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to check if type exists: ", e.what());
@@ -93,9 +93,9 @@ void createType(std::unique_ptr<pqxx::connection> &conn, const std::string &type
 
     // Execute the query
     try {
-        pqxx::work W(*conn);
-        W.exec(query);
-        W.commit();
+        pqxx::work tx(*conn);
+        tx.exec(query);
+        tx.commit();
         Utils::log(Utils::LogLevel::DEBUG, std::cout, "Type `" + typeName + "` created.");
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to create type: ", e.what());
@@ -105,9 +105,9 @@ void createType(std::unique_ptr<pqxx::connection> &conn, const std::string &type
 bool doesTableExist(std::unique_ptr<pqxx::connection> &conn, const std::string &tableName) {
     std::string query = "SELECT 1 FROM pg_tables WHERE tablename = " + conn->quote(tableName);
     try {
-        pqxx::work W(*conn);
-        pqxx::result R = W.exec(query);
-        W.commit();
+        pqxx::work tx(*conn);
+        pqxx::result R = tx.exec(query);
+        tx.commit();
         return !R.empty();
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to check if table exists: ", e.what());
@@ -135,9 +135,9 @@ bool doesFunctionExist(std::unique_ptr<pqxx::connection> &conn, const std::strin
     functionSignature += ")";
 
     try {
-        pqxx::work W(*conn);
-        pqxx::result R = W.exec_params(query, functionSignature);
-        W.commit();
+        pqxx::work tx(*conn);
+        pqxx::result R = tx.exec_params(query, functionSignature);
+        tx.commit();
         return !R[0][0].is_null();
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to check if function exists: ", e.what());
@@ -172,9 +172,9 @@ void createFunction(std::unique_ptr<pqxx::connection> &conn,
 
     // Execute the query
     try {
-        pqxx::work W(*conn);
-        W.exec(query);
-        W.commit();
+        pqxx::work tx(*conn);
+        tx.exec(query);
+        tx.commit();
         Utils::log(Utils::LogLevel::DEBUG, std::cout, "Function `" + functionName + "` created.");
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to create function: ", e.what());
@@ -184,9 +184,9 @@ void createFunction(std::unique_ptr<pqxx::connection> &conn,
 pqxx::result execCommand(std::unique_ptr<pqxx::connection> &conn, const std::string &command) {
     Utils::log(Utils::LogLevel::DEBUG, std::cout, "Executing: ", command);
     try {
-        pqxx::work W(*conn);
-        pqxx::result R = W.exec(command);
-        W.commit();
+        pqxx::work tx(*conn);
+        pqxx::result R = tx.exec(command);
+        tx.commit();
         return R;
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to execute command: ", e.what());
@@ -226,27 +226,19 @@ void printRows(const pqxx::result &R) {
     // Calculate total width
     size_t totalWidth = std::accumulate(maxLengths.begin(), maxLengths.end(), maxLengths.size() * 3) - 1; // -1 to align the last column with the +
 
-    std::ostringstream output;
-
-    // Print top border
-    output << "\n+" << std::string(totalWidth, '-') << "+\n";
-
-    // Print each row with adjusted column widths
+    // Insert top border, rows and bottom border
+    std::ostringstream oss;
+    oss << "\n+" << std::string(totalWidth, '-') << "+\n";
     for (const auto &rowData: rows) {
         for (size_t i = 0; i < rowData.size(); ++i) {
-            output << "| " << std::setw(maxLengths[i]) << std::left << rowData[i] << " ";
+            oss << "| " << std::setw(maxLengths[i]) << std::left << rowData[i] << " ";
         }
-        output << "|\n";
-
-        // Print separator line after column names
-        if (&rowData == &rows.front()) output << "+" << std::string(totalWidth, '-') << "+\n";
+        oss << "|\n";
+        if (&rowData == &rows.front()) oss << "+" << std::string(totalWidth, '-') << "+\n";
     }
+    oss << "+" << std::string(totalWidth, '-') << "+";
 
-    // Print bottom border
-    output << "+" << std::string(totalWidth, '-') << "+";
-
-    // Print the output string once at the end
-    Utils::log(Utils::LogLevel::TRACE, std::cout, output.str());
+    Utils::log(Utils::LogLevel::TRACE, std::cout, oss.str());
 }
 
 void printRow(const pqxx::row &row) {
@@ -266,32 +258,21 @@ void printRow(const pqxx::row &row) {
     // Calculate total width
     size_t totalWidth = std::accumulate(maxLengths.begin(), maxLengths.end(), maxLengths.size() * 3) - 1; // -1 to align the last column with the +
 
-    // Prepare output stream
-    std::ostringstream output;
-
-    // Print top border
-    output << "\n+" << std::string(totalWidth, '-') << "+\n";
-
-    // Print column names with adjusted column widths
+    // Insert top border, rows and bottom border
+    std::ostringstream oss;
+    oss << "\n+" << std::string(totalWidth, '-') << "+\n";
     for (size_t i = 0; i < columnNames.size(); ++i) {
-        output << "| " << std::setw(maxLengths[i]) << std::left << columnNames[i] << " ";
+        oss << "| " << std::setw(maxLengths[i]) << std::left << columnNames[i] << " ";
     }
-    output << "|\n";
-
-    // Print separator line
-    output << "+" << std::string(totalWidth, '-') << "+\n";
-
-    // Print row values with adjusted column widths
+    oss << "|\n";
+    oss << "+" << std::string(totalWidth, '-') << "+\n";
     for (size_t i = 0; i < values.size(); ++i) {
-        output << "| " << std::setw(maxLengths[i]) << std::left << values[i] << " ";
+        oss << "| " << std::setw(maxLengths[i]) << std::left << values[i] << " ";
     }
-    output << "|\n";
+    oss << "|\n";
+    oss << "+" << std::string(totalWidth, '-') << "+";
 
-    // Print bottom border
-    output << "+" << std::string(totalWidth, '-') << "+";
-
-    // Print the output string once at the end
-    Utils::log(Utils::LogLevel::TRACE, std::cout, output.str());
+    Utils::log(Utils::LogLevel::TRACE, std::cout, oss.str());
 }
 
 // Sezione porcherie

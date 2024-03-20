@@ -49,13 +49,13 @@ public:
     /**
      * Look in the `products` table.
      *
-     * The products can be filtered by:
+     * Products can be filtered by:
      *  - name
      *  - supplier_username
      *  - price (as a range; can omit the upper or lower bound to get all products with a price higher/lower than the given value)
      * Any combination of the above filters can be used, or none at all to get all products.
      *
-     * The results can be sorted by:
+     * Products can be sorted by:
      *  - name
      *  - supplier_username
      *  - price
@@ -79,16 +79,16 @@ public:
     /**
      * Add a product to the cart.
      * @param productId the id of the product to add
-     * @param quantity the quantity of the product to add. Defaults to 1.
+     * @param amount the amount of products to add. Defaults to 1.
      */
-    void addProductToCart(const uint32_t &productId, const uint32_t &quantity = 1);
+    void addProductToCart(const uint32_t &productId, const std::optional<uint32_t> &amount);
 
     /**
      * Remove a product from the cart.
      * @param productId the id of the product to remove.
-     * @param quantity the quantity of the product to remove. Defaults to all of the product in the cart.
+     * @param amount the amount of products to remove. Defaults to the amount of the product in the cart.
      */
-    void removeProductFromCart(const uint32_t &productId, const uint32_t &quantity = UINT32_MAX);
+    void removeProductFromCart(const uint32_t &productId, const std::optional<uint32_t> &amount);
 
     /**
      * Get the contents of the cart.
