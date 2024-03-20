@@ -9,8 +9,8 @@ int main() {
     if (!postgresConn) return EXIT_FAILURE;
 
     // Connect to Redis
-    std::shared_ptr<sw::redis::Redis> redisContext = conn2Redis();
-    if (!redisContext) return EXIT_FAILURE;
+    std::shared_ptr<sw::redis::Redis> redisConn = conn2Redis();
+    if (!redisConn) return EXIT_FAILURE;
 
     // Program logic...
     Utils::log(Utils::LogLevel::TRACE, std::cout, "Postgres and Redis are running.");

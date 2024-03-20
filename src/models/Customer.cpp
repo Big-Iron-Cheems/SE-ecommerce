@@ -90,7 +90,7 @@ void Customer::addProductToCart(const uint32_t &productId, const std::optional<u
         // Add product to cart
         std::shared_ptr<sw::redis::Redis> rdConn = conn2Redis();
 
-        std::string cartKey = "cart:" + std::to_string(id);
+        std::string cartKey = "cart:" + id;
         std::string productKey = cartKey + ":" + std::to_string(productId);
 
         std::unordered_map<std::string, std::string> productData{{"name", name}, {"supplierId", supplierId}, {"price", price}, {"amount", std::to_string(amount.value())}};
@@ -134,7 +134,7 @@ void Customer::removeProductFromCart(const uint32_t &productId, const std::optio
         std::shared_ptr<sw::redis::Redis> conn = conn2Redis();
 
         // Get the product from cart
-        std::string cartKey = "cart:" + std::to_string(id);
+        std::string cartKey = "cart:" + id;
         std::string productKey = cartKey + ":" + std::to_string(productId);
 
         // Get the product's current amount to decide if and how much to remove
@@ -165,7 +165,7 @@ void Customer::getCart() const {
         std::shared_ptr<sw::redis::Redis> conn = conn2Redis();
 
         // Retrieve the keys of the products in the cart of the customer
-        std::string cartKey = "cart:" + std::to_string(id);
+        std::string cartKey = "cart:" + id;
         std::unordered_set<std::string> keys;
         long long cursor = 0LL;
         while (true) {

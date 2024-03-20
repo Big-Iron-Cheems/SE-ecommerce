@@ -36,10 +36,10 @@ void User::login() {
             // If the user is already in the database, fetch the id and balance, and set the logged_in field to true
             // Otherwise, throw an exception as the user is already connected
             if (!R[0][2].as<bool>()) {
-                id = R[0][0].as<uint32_t>();
+                id = R[0][0].as<std::string>();
                 balance = R[0][1].as<uint32_t>();
 
-                query = "SELECT set_logged_in(" + conn->quote(userType) + ", " + std::to_string(id) + ", true);";
+                query = "SELECT set_logged_in(" + conn->quote(userType) + ", " + id + ", true);";
                 pqxx::work tx_login(*conn);
                 tx_login.exec(query);
                 tx_login.commit();
@@ -51,10 +51,10 @@ void User::login() {
             R = tx_new_user.exec(query);
             tx_new_user.commit();
 
-            id = R[0][0].as<uint32_t>();
+            id = R[0][0].as<std::string>();
             balance = 0;
         }
-        Utils::log(Utils::LogLevel::TRACE, std::cout, "User `", name, "` logged in as ", userType, " with id ", id, " and balance ", balance);
+        Utils::log(Utils::LogLevel::TRACE, std::cout, "User `", name, "` logged in {type: `", userType, "`, id: ", id, ", balance: ", balance, "}");
     } catch (const pqxx::broken_connection &e) {
         throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
@@ -77,14 +77,14 @@ void User::logout() {
         auto conn = conn2Postgres("ecommerce", userType, userType);
 
         // Build the query to check if the user's logged_in field is true
-        std::string query = "SELECT logged_in FROM " + userType + "s WHERE id = " + std::to_string(id) + ";";
+        std::string query = "SELECT logged_in FROM " + userType + "s WHERE id = " + id + ";";
         pqxx::work tx(*conn);
         pqxx::result R = tx.exec(query);
         tx.commit();
 
         if (R[0][0].as<bool>()) {
             // If the user's logged_in field is true, set the logged_in field to false
-            query = "SELECT set_logged_in(" + conn->quote(userType) + ", " + std::to_string(id) + ", false);";
+            query = "SELECT set_logged_in(" + conn->quote(userType) + ", " + id + ", false);";
             pqxx::work tx_logout(*conn);
             tx_logout.exec(query);
             tx_logout.commit();
@@ -104,7 +104,7 @@ void User::getBalance() const {
         auto conn = conn2Postgres("ecommerce", userType, userType);
 
         // Build the query
-        std::string query = "SELECT balance FROM " + userType + "s WHERE id = " + std::to_string(id) + ";";
+        std::string query = "SELECT balance FROM " + userType + "s WHERE id = " + id + ";";
 
         // Execute the query
         pqxx::work tx(*conn);
@@ -127,7 +127,7 @@ void User::setBalance(const int32_t &balanceChange) {
         auto conn = conn2Postgres("ecommerce", userType, userType);
 
         // Build the query to call the stored procedure
-        std::string query = "SELECT set_balance(" + conn->quote(userType) + ", " + std::to_string(id) + ", " + std::to_string(balanceChange) + ");";
+        std::string query = "SELECT set_balance(" + conn->quote(userType) + ", " + id + ", " + std::to_string(balanceChange) + ");";
 
         // Execute the query
         pqxx::work tx(*conn);
