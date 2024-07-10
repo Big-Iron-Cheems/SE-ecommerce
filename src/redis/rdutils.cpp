@@ -5,7 +5,7 @@ std::shared_ptr<sw::redis::Redis> conn2Redis() {
         std::shared_ptr<sw::redis::Redis> redis = std::make_shared<sw::redis::Redis>("tcp://127.0.0.1:6379");
         return redis;
     } catch (const sw::redis::Error &err) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to connect to Redis: ", err.what());
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to connect to Redis: {}", err.what()));
         return nullptr;
     }
 }

@@ -13,70 +13,70 @@
  */
 
 std::unique_ptr<pqxx::connection> conn2Postgres(const std::string &dbname, const std::string &user, const std::string &password) {
-    std::string connInfo = "dbname=" + dbname + " user=" + user + " password=" + password;
+    std::string connInfo = std::format("dbname={} user={} password={}", dbname, user, password);
     try {
-        std::unique_ptr<pqxx::connection> conn = std::make_unique<pqxx::connection>(connInfo);
-        Utils::log(Utils::LogLevel::DEBUG, std::cout, "Connected to Postgres database '" + dbname + "' as user '" + user + "'.");
+        auto conn = std::make_unique<pqxx::connection>(connInfo);
+        Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("Connected to Postgres database '{}' as user '{}'.", dbname, user));
         return conn;
     } catch (const pqxx::broken_connection &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to connect to Postgres database '" + dbname + "' as user '" + user + "': ", e.what());
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to connect to Postgres database '{}' as user '{}': {}", dbname, user, e.what()));
         throw; // Rethrow the exception to propagate it to the caller
     }
 }
 
 bool doesDatabaseExist(std::unique_ptr<pqxx::connection> &conn, const std::string &databaseName) {
-    std::string query = "SELECT 1 FROM pg_database WHERE datname = " + conn->quote(databaseName);
+    std::string query = std::format("SELECT 1 FROM pg_database WHERE datname = '{}'", databaseName);
     try {
         pqxx::work tx(*conn);
         pqxx::result R = tx.exec(query);
         tx.commit();
         return !R.empty();
     } catch (const std::exception &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to check if database exists: ", e.what());
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to check if database exists: {}", e.what()));
         return false;
     }
 }
 
 void createDatabase(std::unique_ptr<pqxx::connection> &conn, const std::string &databaseName) {
-    if (doesDatabaseExist(conn, databaseName)) Utils::log(Utils::LogLevel::DEBUG, std::cout, "Database `" + databaseName + "` already exists.");
+    if (doesDatabaseExist(conn, databaseName)) Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("Database `{}` already exists.", databaseName));
     else {
-        pqxx::result R = execCommand(conn, "CREATE DATABASE " + databaseName);
-        if (R.empty()) Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to create database: `" + databaseName + "`.");
-        else Utils::log(Utils::LogLevel::DEBUG, std::cout, "Database `" + databaseName + "` created.");
+        pqxx::result R = execCommand(conn, std::format("CREATE DATABASE {}", databaseName));
+        if (R.empty()) Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to create database: `{}`.", databaseName));
+        else Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("Database `{}` created.", databaseName));
     }
 }
 
 bool doesUserExist(std::unique_ptr<pqxx::connection> &conn, const std::string &username) {
-    std::string query = "SELECT 1 FROM pg_user WHERE usename = " + conn->quote(username);
+    std::string query = std::format("SELECT 1 FROM pg_user WHERE usename = '{}'", username);
     try {
         pqxx::work tx(*conn);
         pqxx::result R = tx.exec(query);
         tx.commit();
         return !R.empty();
     } catch (const std::exception &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to check if user exists: ", e.what());
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to check if user exists: {}", e.what()));
         return false;
     }
 }
 
 void createUser(std::unique_ptr<pqxx::connection> &conn, const std::string &username, const std::string &password, const std::string &options) {
-    if (doesUserExist(conn, username)) Utils::log(Utils::LogLevel::DEBUG, std::cout, "User `" + username + "` already exists.");
+    if (doesUserExist(conn, username)) Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("User `{}` already exists.", username));
     else {
-        pqxx::result R = execCommand(conn, "CREATE USER " + username + " WITH PASSWORD " + conn->quote(password) + " " + options);
-        if (R.empty()) Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to create user: `" + username + "`.");
-        else Utils::log(Utils::LogLevel::DEBUG, std::cout, "User `" + username + "` created.");
+        pqxx::result R = execCommand(conn, std::format("CREATE USER {} WITH PASSWORD {} {}", username, conn->quote(password), options));
+        if (R.empty()) Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to create user: `{}`.", username));
+        else Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("User `{}` created.", username));
     }
 }
 
 bool doesTypeExist(std::unique_ptr<pqxx::connection> &conn, const std::string &typeName) {
-    std::string query = "SELECT 1 FROM pg_type WHERE typname = " + conn->quote(typeName);
+    std::string query = std::format("SELECT 1 FROM pg_type WHERE typname = {}", conn->quote(typeName));
     try {
         pqxx::work tx(*conn);
         pqxx::result R = tx.exec(query);
         tx.commit();
         return !R.empty();
     } catch (const std::exception &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to check if type exists: ", e.what());
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to check if type exists: {}", e.what()));
         return false;
     }
 }
@@ -84,43 +84,43 @@ bool doesTypeExist(std::unique_ptr<pqxx::connection> &conn, const std::string &t
 void createType(std::unique_ptr<pqxx::connection> &conn, const std::string &typeName, const std::string &typeDef) {
     // Check if the type already exists
     if (doesTypeExist(conn, typeName)) {
-        Utils::log(Utils::LogLevel::DEBUG, std::cout, "Type `" + typeName + "` already exists.");
+        Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("Type `{}` already exists.", typeName));
         return;
     }
 
     // Build the query
-    std::string query = "CREATE TYPE " + typeName + " AS " + typeDef + ";";
+    std::string query = std::format("CREATE TYPE {} AS {};", typeName, typeDef);
 
     // Execute the query
     try {
         pqxx::work tx(*conn);
         tx.exec(query);
         tx.commit();
-        Utils::log(Utils::LogLevel::DEBUG, std::cout, "Type `" + typeName + "` created.");
+        Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("Type `{}` created.", typeName));
     } catch (const std::exception &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to create type: ", e.what());
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to create type: {}", e.what()));
     }
 }
 
 bool doesTableExist(std::unique_ptr<pqxx::connection> &conn, const std::string &tableName) {
-    std::string query = "SELECT 1 FROM pg_tables WHERE tablename = " + conn->quote(tableName);
+    std::string query = std::format("SELECT 1 FROM pg_tables WHERE tablename = {}", conn->quote(tableName));
     try {
         pqxx::work tx(*conn);
         pqxx::result R = tx.exec(query);
         tx.commit();
         return !R.empty();
     } catch (const std::exception &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to check if table exists: ", e.what());
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to check if table exists: {}", e.what()));
         return false;
     }
 }
 
 void createTable(std::unique_ptr<pqxx::connection> &conn, const std::string &tableName, const std::string &columns) {
-    if (doesTableExist(conn, tableName)) Utils::log(Utils::LogLevel::DEBUG, std::cout, "Table `" + tableName + "` already exists.");
+    if (doesTableExist(conn, tableName)) Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("Table `{}` already exists.", tableName));
     else {
-        pqxx::result R = execCommand(conn, "CREATE TABLE " + tableName + " (" + columns + ")");
-        if (R.empty()) Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to create table: `" + tableName + "`.");
-        else Utils::log(Utils::LogLevel::DEBUG, std::cout, "Table `" + tableName + "` created.");
+        pqxx::result R = execCommand(conn, std::format("CREATE TABLE {} ({})", tableName, columns));
+        if (R.empty()) Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to create table: `{}`.", tableName));
+        else Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("Table `{}` created", tableName));
     }
 }
 
@@ -140,7 +140,7 @@ bool doesFunctionExist(std::unique_ptr<pqxx::connection> &conn, const std::strin
         tx.commit();
         return !R[0][0].is_null();
     } catch (const std::exception &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to check if function exists: ", e.what());
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to check if function exists: {}", e.what()));
         return false;
     }
 }
@@ -152,13 +152,13 @@ void createFunction(std::unique_ptr<pqxx::connection> &conn,
                     const std::string &body) {
     // Get the argument types as a vector
     std::vector<std::string> argTypes;
-    for (const std::pair<std::string, std::string> &arg: args) {
-        argTypes.push_back(arg.second);
+    for (auto &[argName, argType]: args) {
+        argTypes.push_back(argType);
     }
 
     // Check if the function already exists
     if (doesFunctionExist(conn, functionName, argTypes)) {
-        Utils::log(Utils::LogLevel::DEBUG, std::cout, "Function `" + functionName + "` already exists.");
+        Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("Function `{}` already exists.", functionName));
         return;
     }
 
@@ -175,21 +175,21 @@ void createFunction(std::unique_ptr<pqxx::connection> &conn,
         pqxx::work tx(*conn);
         tx.exec(query);
         tx.commit();
-        Utils::log(Utils::LogLevel::DEBUG, std::cout, "Function `" + functionName + "` created.");
+        Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("Function `{}` created.", functionName));
     } catch (const std::exception &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to create function: ", e.what());
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to create function: {}", e.what()));
     }
 }
 
 pqxx::result execCommand(std::unique_ptr<pqxx::connection> &conn, const std::string &command) {
-    Utils::log(Utils::LogLevel::DEBUG, std::cout, "Executing: ", command);
+    Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("Executing: {}", command));
     try {
         pqxx::work tx(*conn);
         pqxx::result R = tx.exec(command);
         tx.commit();
         return R;
     } catch (const std::exception &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to execute command: ", e.what());
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to execute command: {}", e.what()));
         return {};
     }
 }
@@ -216,7 +216,7 @@ void printRows(const pqxx::result &R) {
     for (const auto &row: R) {
         std::vector<std::string> rowData;
         for (const auto &element: row) {
-            std::string value = element.as<std::string>();
+            auto value = element.as<std::string>();
             maxLengths[rowData.size()] = std::max(maxLengths[rowData.size()], value.size());
             rowData.emplace_back(std::move(value));
         }
@@ -249,7 +249,7 @@ void printRow(const pqxx::row &row) {
     // Store column names, values and find maximum length of content in each column
     for (const auto &field: row) {
         std::string columnName = field.name();
-        std::string value = field.as<std::string>();
+        auto value = field.as<std::string>();
         maxLengths[columnNames.size()] = std::max({maxLengths[columnNames.size()], columnName.size(), value.size()});
         columnNames.push_back(std::move(columnName));
         values.push_back(std::move(value));
@@ -313,9 +313,7 @@ std::unique_ptr<pqxx::connection> initDatabase() {
     return conn;
 }
 
-void initTypes(std::unique_ptr<pqxx::connection> &conn) {
-    createType(conn, "user_role", "ENUM ('customer', 'supplier', 'transporter')");
-}
+void initTypes(std::unique_ptr<pqxx::connection> &conn) { createType(conn, "user_role", "ENUM ('customer', 'supplier', 'transporter')"); }
 
 void initTables(std::unique_ptr<pqxx::connection> &conn) {
     // Seen only by the admins
@@ -430,7 +428,7 @@ void initFunctions(std::unique_ptr<pqxx::connection> &conn) {
         END IF;
 
         -- Update the balance in the appropriate table and retrieve the new balance
-        EXECUTE format('UPDATE %I SET balance = balance %s $1 WHERE id = $2 RETURNING balance', target_table, operation)
+        EXECUTE format('UPDATE %I SET balance = balance %s $1 WHERE id = $2 RETURNING balance', get_target_table(user_type), operation)
         INTO new_balance
         USING ABS(amount), user_id;  -- Use the absolute value of amount
 

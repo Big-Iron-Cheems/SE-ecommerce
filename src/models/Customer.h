@@ -19,11 +19,11 @@ public:
             User::login();
             loggedInSuccessfully = true;
         } catch (const std::exception &e) {
-            Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to create a Customer: ", e.what());
+            Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to create a Customer: {}", e.what()));
         }
     };
 
-    ~Customer() {
+    virtual ~Customer() {
         if (loggedInSuccessfully) User::logout();
     };
 
@@ -59,20 +59,19 @@ public:
      *  - name
      *  - supplier_username
      *  - price
-     * Only one sorting method can be used at a time, or none at all to get the results in the order they were found.
+     * Multiple sorting criteria can be used, and each one can be sorted in ascending or descending order.
      *
      * @param name The name of the product to filter for.
      * @param supplierUsername The username of the supplier to filter for.
      * @param priceLowerBound The lower bound of the price range to filter for.
      * @param priceUpperBound The upper bound of the price range to filter for.
-     * @param orderBy The column to sort the results by. (Can be "name", "supplier_username" or "price")
+     * @param orderBy The columns to sort the results by. (Can be "name", "supplier_username" or "price". The bool indicates the sorting order, true -> ascending, false -> descending.)
      */
     void searchProduct(const std::optional<std::string> &name,
                        const std::optional<std::string> &supplierUsername,
                        const std::optional<uint32_t> &priceLowerBound,
                        const std::optional<uint32_t> &priceUpperBound,
-                       const std::optional<std::string> &orderBy,
-                       const std::optional<bool> &sortDescending) const;
+                       const std::optional<std::vector<std::pair<std::string, bool>>> &orderBy) const;
 
     // Cart related methods
 
@@ -93,7 +92,9 @@ public:
     /**
      * Get the contents of the cart.
      */
-    void getCart() const;
+    [[nodiscard]] std::map<std::string, std::unordered_map<std::string, std::string>> getCart() const;
+
+    void clearCart();
 
     // Order related methods
 

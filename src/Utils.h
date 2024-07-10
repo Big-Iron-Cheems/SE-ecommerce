@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <sstream>
+#include <utility>
 
 class Utils {
 private:
@@ -15,16 +16,17 @@ private:
      */
     constexpr static std::string color(Color color) {
         switch (color) {
-            case Color::RED: return "\033[1;31m";
-            case Color::GRN: return "\033[1;32m";
-            case Color::YLW: return "\033[1;33m";
-            case Color::BLU: return "\033[1;34m";
-            case Color::MAG: return "\033[1;35m";
-            case Color::CYN: return "\033[1;36m";
-            case Color::WHT: return "\033[1;37m";
-            case Color::RST: return "\033[0m";
+            using enum Utils::Color;
+            case RED: return "\033[1;31m";
+            case GRN: return "\033[1;32m";
+            case YLW: return "\033[1;33m";
+            case BLU: return "\033[1;34m";
+            case MAG: return "\033[1;35m";
+            case CYN: return "\033[1;36m";
+            case WHT: return "\033[1;37m";
+            case RST: return "\033[0m";
         }
-        throw std::invalid_argument("Invalid color value"); // To silence compiler warning
+        std::unreachable(); // To silence compiler warning
     }
 
 public:
@@ -50,23 +52,7 @@ public:
      * Prints a log message to the specified output stream with the specified debug level.
      * @param level the debug level
      * @param ostream the output stream
-     * @param contents the contents to print
+     * @param message the message to print, `std::format` for readability
      */
-    template<typename... Contents>
-    [[maybe_unused]] static void log(Utils::LogLevel level, std::ostream &ostream, Contents... contents);
+    [[maybe_unused]] static void log(Utils::LogLevel level, std::ostream &ostream, const std::string &message);
 };
-
-template<typename... Contents>
-void Utils::log(Utils::LogLevel level, std::ostream &ostream, Contents... contents) {
-    std::ostringstream oss;
-    (oss << ... << contents);
-
-    switch (level) {
-        case Utils::LogLevel::DEBUG: ostream << color(Color::YLW) << "[DEBUG] " << color(Color::RST); break;
-        case Utils::LogLevel::TRACE: ostream << color(Color::GRN) << "[TRACE] " << color(Color::RST); break;
-        case Utils::LogLevel::ALERT: ostream << color(Color::MAG) << "[ALERT] " << color(Color::RST); break;
-        case Utils::LogLevel::ERROR: ostream << color(Color::RED) << "[ERROR] " << color(Color::RST); break;
-    }
-
-    ostream << oss.str() << std::endl;
-}

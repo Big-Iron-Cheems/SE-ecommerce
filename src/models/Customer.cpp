@@ -12,12 +12,12 @@ std::string Customer::toString() const {
     return oss.str();
 }
 
+// TODO: replace the params with a structured object (struct or class)
 void Customer::searchProduct(const std::optional<std::string> &name,
                              const std::optional<std::string> &supplierUsername,
                              const std::optional<uint32_t> &priceLowerBound,
                              const std::optional<uint32_t> &priceUpperBound,
-                             const std::optional<std::string> &orderBy,
-                             const std::optional<bool> &sortDescending) const {
+                             const std::optional<std::vector<std::pair<std::string, bool>>> &orderBy) const {
     try {
         // Connect to `ecommerce` db as `customer` user using conn2Postgres
         std::unique_ptr<pqxx::connection> conn = conn2Postgres("ecommerce", "customer", "customer");
@@ -29,19 +29,25 @@ void Customer::searchProduct(const std::optional<std::string> &name,
         // Filters
         if (name.has_value()) filters += "name LIKE " + conn->quote("%" + name.value() + "%") + " AND ";
         if (supplierUsername.has_value()) filters += "supplier_username LIKE " + conn->quote("%" + supplierUsername.value() + "%") + " AND ";
-        if (priceLowerBound.has_value()) filters += "price >= " + std::to_string(priceLowerBound.value()) + " AND ";
-        if (priceUpperBound.has_value()) filters += "price <= " + std::to_string(priceUpperBound.value()) + " AND ";
+        if (priceLowerBound.has_value()) filters += std::format("price >= {} AND", priceLowerBound.value());
+        if (priceUpperBound.has_value()) filters += std::format("price <= {} AND", priceUpperBound.value());
 
         // Remove the last " AND " if it exists
-        if (!filters.empty() && filters.substr(filters.length() - 5) == " AND ") filters = filters.substr(0, filters.length() - 5);
+        if (!filters.empty() && filters.ends_with(" AND ")) filters = filters.substr(0, filters.length() - 5);
 
         // Add filters to the query if they exist
         if (!filters.empty()) query += " WHERE " + filters;
 
         // Sort
         if (orderBy.has_value()) {
-            query += " ORDER BY " + orderBy.value();
-            if (sortDescending.value_or(false)) query += " DESC";
+            query += " ORDER BY ";
+            for (const auto &[columnName, sortDescending]: orderBy.value()) {
+                query += columnName;
+                if (sortDescending) query += " DESC";
+                query += ", ";
+            }
+            // Remove the last ", " if it exists
+            if (!orderBy.value().empty()) query = query.substr(0, query.length() - 2);
         }
         query += ";";
 
@@ -55,7 +61,7 @@ void Customer::searchProduct(const std::optional<std::string> &name,
     } catch (const pqxx::broken_connection &e) {
         throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to search products: ", e.what());
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to search products: {}", e.what()));
     }
 }
 
@@ -70,7 +76,7 @@ void Customer::addProductToCart(const uint32_t &productId, const std::optional<u
 
     // Validate amount
     if (amount.has_value() && amount.value() <= 0) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to add product to cart, invalid amount: ", amount.value());
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to add product to cart, invalid amount: {}", amount.value()));
         return;
     } else if (!amount.has_value()) Utils::log(Utils::LogLevel::TRACE, std::cout, "Quantity not provided, defaulting to 1.");
 
@@ -80,7 +86,7 @@ void Customer::addProductToCart(const uint32_t &productId, const std::optional<u
         std::unique_ptr<pqxx::connection> pgConn = conn2Postgres("ecommerce", "customer", "customer");
 
         // Build query from parameters
-        std::string query = "SELECT name, supplier_id, price FROM products WHERE id = " + std::to_string(productId) + ";";
+        std::string query = std::format("SELECT name, supplier_id, price FROM products WHERE id = {};", productId);
 
         // Execute query
         pqxx::work tx(*pgConn);
@@ -93,22 +99,16 @@ void Customer::addProductToCart(const uint32_t &productId, const std::optional<u
         std::string cartKey = "cart:" + id;
         std::string productKey = cartKey + ":" + std::to_string(productId);
 
-        std::unordered_map<std::string, std::string> productData{{"name", name}, {"supplierId", supplierId}, {"price", price}, {"amount", std::to_string(amount.value())}};
+        std::unordered_map<std::string, std::string> productData{{"name", name}, {"supplierId", supplierId}, {"price", price}, {"amount", std::to_string(amount.value_or(1))}};
         rdConn->hset(productKey, productData.begin(), productData.end());
 
-        Utils::log(Utils::LogLevel::TRACE, std::cout, "Added ", amount.value(), "x `", name, "` to the cart.");
-        // TODO: if successful, update the cart's total price?
-
+        Utils::log(Utils::LogLevel::TRACE, std::cout, std::format("Added {}x `{}` to the cart.", amount.value_or(1), name));
     } catch (const pqxx::broken_connection &e) {
         throw; // Rethrow the exception to propagate it to the caller
-    } catch (const std::exception &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to add product to cart: ", e.what());
-    }
-
-    try {
-        std::shared_ptr<sw::redis::Redis> conn = conn2Redis();
     } catch (const sw::redis::Error &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to add product to cart: ", e.what());
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to add product to cart: {}", e.what()));
+    } catch (const std::exception &e) {
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to add product to cart: {}", e.what()));
     }
 }
 
@@ -125,7 +125,7 @@ void Customer::removeProductFromCart(const uint32_t &productId, const std::optio
 
     // Validate amount
     if (amount.has_value() && amount.value() <= 0) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to remove product from cart, invalid amount: ", amount.value());
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to remove product from cart, invalid amount: {}", amount.value()));
         return;
     } else if (!amount.has_value()) Utils::log(Utils::LogLevel::TRACE, std::cout, "Quantity not provided, defaulting to max.");
 
@@ -155,39 +155,259 @@ void Customer::removeProductFromCart(const uint32_t &productId, const std::optio
         }
 
     } catch (sw::redis::Error &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to remove product from cart: ", e.what());
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to remove product from cart: {}", e.what()));
     }
 }
 
-void Customer::getCart() const {
+std::map<std::string, std::unordered_map<std::string, std::string>> Customer::getCart() const {
+    std::map<std::string, std::unordered_map<std::string, std::string>> completeCart;
     try {
         // Connect to the redis server
         std::shared_ptr<sw::redis::Redis> conn = conn2Redis();
 
-        // Retrieve the keys of the products in the cart of the customer
+        // Retrieve the prodKeys of the products in the cart of the customer
         std::string cartKey = "cart:" + id;
-        std::unordered_set<std::string> keys;
+        std::unordered_set<std::string> prodKeys;
         long long cursor = 0LL;
         while (true) {
-            cursor = conn->scan(cursor, cartKey + "*", 10, std::inserter(keys, keys.begin()));
+            cursor = conn->scan(cursor, cartKey + "*", 10, std::inserter(prodKeys, prodKeys.begin()));
             if (cursor == 0) break;
         }
 
-        // Iterate over the keys and print the contents of the hashsets
-        std::unordered_map<std::string, std::string> hash_data;
+        // Iterate over the prodKeys and print the contents of the hashsets
+        uint32_t totalPrice = 0;
         std::ostringstream oss;
-        for (const auto &key: keys) {
-            conn->hgetall(key, std::inserter(hash_data, hash_data.begin()));
+        for (const auto &key: prodKeys) {
+            std::unordered_map<std::string, std::string> prodData;
+            conn->hgetall(key, std::inserter(prodData, prodData.begin()));
+            completeCart[id] = prodData;
 
             oss << "\nProduct: " << key << " {\n";
-            for (const auto &field: hash_data) {
-                oss << "\t" << field.first << ": " << field.second << std::endl;
+            for (const auto &[field, value]: prodData) {
+                oss << "\t" << field << ": " << value << std::endl;
             }
             oss << "}";
+
+            totalPrice += std::stoi(prodData["price"]) * std::stoi(prodData["amount"]);
         }
+        oss << "\nTotal price: " << totalPrice << std::endl;
         Utils::log(Utils::LogLevel::TRACE, std::cout, oss.str());
 
     } catch (const sw::redis::Error &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to get cart: ", e.what());
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to get cart: {}", e.what()));
+    }
+
+    return completeCart;
+}
+
+void Customer::clearCart() {
+    try {
+        // Connect to the redis server
+        std::shared_ptr<sw::redis::Redis> conn = conn2Redis();
+
+        // Retrieve all keys for the customer's cart products
+        std::string pattern = "cart:" + id + ":*";
+        std::vector<std::string> keysToDelete;
+        auto cursor = 0LL;
+        do {
+            cursor = conn->scan(cursor, pattern, 10, std::back_inserter(keysToDelete));
+        } while (cursor != 0);
+
+        // Delete each key
+        for (const auto &key: keysToDelete) {
+            conn->del(key);
+        }
+
+        // Delete the main cart key
+        std::string mainCartKey = "cart:" + id;
+        conn->del(mainCartKey);
+
+        Utils::log(Utils::LogLevel::TRACE, std::cout, "Cart cleared.");
+    } catch (const sw::redis::Error &e) {
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to clear cart: {}", e.what()));
     }
 }
+
+// TODO printCart method, uses getCart and prints the cart in a more user-friendly way
+
+void Customer::makeOrder(const std::string &address) {
+    /*
+     * It is intended to call this after the cart has been populated with `addProductToCart`.
+     *
+     * 1. Verify that all the items in the cart are still available. (Suppliers might have removed them from the platform.)
+     *  1.1. If an iem is not available, log an error and return. (Maybe remove it silently from the cart? Counterintuitive.)
+     *  1.2. If all items are available, continue.
+     *  1.3. If the cart is empty, log an error and return.
+     * 2. Create an order with the items in the cart.
+     * 3. Remove the items from the Redis cart.
+     * 4. Update the customer's and suppliers' balances.
+     * 5. Update the products and orders tables.
+     *
+     *
+     */
+
+    try {
+        // Connect to the redis server
+        std::shared_ptr<sw::redis::Redis> rdConn = conn2Redis();
+
+        // Get the cart
+        auto cart = getCart();
+
+        // Validate the cart
+        // Connect to `ecommerce` db as `customer` user using conn2Postgres
+        std::unique_ptr<pqxx::connection> conn = conn2Postgres("ecommerce", "customer", "customer");
+
+        if (cart.empty()) {
+            Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to make order, cart is empty.");
+            return;
+        }
+
+        // Verify availability of all items in the cart
+        for (auto &[productKey, productData]: cart) {
+            std::string query = std::format("SELECT * FROM products WHERE id = {};", productKey);
+            pqxx::work tx(*conn);
+            pqxx::result R = tx.exec(query);
+            tx.commit();
+
+            if (R.empty()) {
+                // The product is no longer available
+                Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to make order, product not found in the database.");
+                return;
+            } else {
+                // The amount we want to order is greater than the amount available
+                if (std::stoi(productData["amount"]) > R[0]["amount"].as<uint32_t>()) {
+                    Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to make order, not enough stock for product {}", productKey));
+                    return;
+                }
+            }
+        }
+
+        // Create an order with the items in the cart
+        pqxx::work tx(*conn);
+
+        // Step 1: Insert the new order and get the order ID
+        std::string insertOrderQuery =
+                std::format("INSERT INTO orders (customer_id, total_price, transporter_id, status, address, timestamp) VALUES ({}, 0, NULL, 'pending', {}, NOW()) RETURNING id;",
+                            id, conn->quote(address));
+        pqxx::result newOrderResult = tx.exec(insertOrderQuery);
+        auto newOrderId = newOrderResult[0][0].as<uint32_t>();
+
+        for (auto &[productKey, productData]: cart) {
+            // Step 2: Add each product to the order_items table
+            std::string insertOrderItemQuery = std::format("INSERT INTO order_items (order_id, product_id, quantity, price, supplier_id) VALUES ({}, {}, {}, {}, {});", newOrderId,
+                                                           productKey, productData["amount"], productData["price"], productData["supplierId"]);
+            tx.exec(insertOrderItemQuery);
+
+            // Step 3: Update the products table
+            std::string updateProductQuery = std::format("UPDATE products SET quantity = quantity - {} WHERE id = {};", productData["amount"], productKey);
+            tx.exec(updateProductQuery);
+
+            // TODO Steps 4 and 5: Update balances (not shown here, requires additional logic)
+        }
+
+        // Step 6: Remove items from Redis cart (handled outside of this transaction)
+        clearCart();
+
+        // Commit the transaction
+        tx.commit();
+    } catch (const pqxx::broken_connection &e) {
+        throw; // Rethrow the exception to propagate it to the caller
+    } catch (const sw::redis::Error &e) {
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to make order: {}", e.what()));
+    }
+}
+
+void Customer::cancelOrder(const uint32_t &orderId) {
+    /*
+     * It is intended to call this after the orders have been listed with `getOrdersHistory`.
+     * This doesn't effectively delete the order rom the db, but it marks it as cancelled.
+     */
+
+    try {
+        // Connect to `ecommerce` db as `customer` user using conn2Postgres
+        std::unique_ptr<pqxx::connection> conn = conn2Postgres("ecommerce", "customer", "customer");
+
+        // Check if the order exists
+        std::string query = std::format("SELECT * FROM orders WHERE id = {};", orderId);
+        pqxx::work tx(*conn);
+        pqxx::result R = tx.exec(query);
+        tx.commit();
+
+        if (R.empty()) {
+            Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to cancel order, order not found.");
+            return;
+        }
+        // TODO: check the status enum to see if it can be actually cancelled
+
+        // Cancel the order
+        query = std::format("UPDATE orders SET status = 'cancelled' WHERE id = {};", orderId);
+        tx.exec(query);
+        tx.commit();
+
+        Utils::log(Utils::LogLevel::TRACE, std::cout, std::format("Order cancelled: {}", orderId));
+    } catch (const pqxx::broken_connection &e) {
+        throw; // Rethrow the exception to propagate it to the caller
+    } catch (const std::exception &e) {
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to cancel order: {}", e.what()));
+    }
+}
+
+void Customer::getOrderStatus(const uint32_t &orderId) const {
+    /*
+     * It is intended to call this after the orders have been listed with `getOrdersHistory`.
+     *
+     * 1. Look for the given order id in the orders table.
+     *  1.1. If the order is not found, log an error and return.
+     *  1.2. If the order is found, continue.
+     * 2. Print the status of the order.
+     */
+
+    try {
+        // Connect to `ecommerce` db as `customer` user using conn2Postgres
+        std::unique_ptr<pqxx::connection> conn = conn2Postgres("ecommerce", "customer", "customer");
+
+        // Check if the order exists
+        std::string query = std::format("SELECT status FROM orders WHERE id = {};", orderId);
+        pqxx::work tx(*conn);
+        pqxx::result R = tx.exec(query);
+        tx.commit();
+
+        if (R.empty()) {
+            Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to get order status, order not found.");
+            return;
+        }
+
+        Utils::log(Utils::LogLevel::TRACE, std::cout, std::format("Order {} status: {}", orderId, R[0]["status"].c_str()));
+    } catch (const pqxx::broken_connection &e) {
+        throw; // Rethrow the exception to propagate it to the caller
+    } catch (const std::exception &e) {
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to cancel order: {}", e.what()));
+    }
+}
+
+void Customer::getOrdersHistory() const {
+    /*
+     * 1. Look for the orders of the customer in the orders table.
+     * 2. Print the orders of the customer.
+     *
+     * TODO Maybe allow optional filters and sorting?
+     */
+
+    try {
+        // Connect to `ecommerce` db as `customer` user using conn2Postgres
+        std::unique_ptr<pqxx::connection> conn = conn2Postgres("ecommerce", "customer", "customer");
+
+        std::string query = std::format("SELECT * FROM orders WHERE customer_id = {};", id);
+        pqxx::work tx(*conn);
+        pqxx::result R = tx.exec(query);
+        tx.commit();
+
+        printRows(R);
+    } catch (const pqxx::broken_connection &e) {
+        throw; // Rethrow the exception to propagate it to the caller
+    } catch (const std::exception &e) {
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to cancel order: {}", e.what()));
+    }
+}
+
+void Customer::returnProduct(const uint32_t &orderId, const std::map<uint32_t, uint32_t> &products) const {}

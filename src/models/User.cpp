@@ -27,7 +27,7 @@ void User::login() {
         auto conn = conn2Postgres("ecommerce", userType, userType);
 
         // Build the query to check if the user is already in the database
-        std::string query = "SELECT id, balance, logged_in FROM " + userType + "s WHERE username = " + conn->quote(name) + ";";
+        std::string query = std::format("SELECT id, balance, logged_in FROM {}s WHERE username = {};", userType, name);
         pqxx::work tx(*conn);
         pqxx::result R = tx.exec(query);
         tx.commit();
@@ -39,14 +39,14 @@ void User::login() {
                 id = R[0][0].as<std::string>();
                 balance = R[0][1].as<uint32_t>();
 
-                query = "SELECT set_logged_in(" + conn->quote(userType) + ", " + id + ", true);";
+                query = std::format("SELECT set_logged_in({}, {}, true);", userType, id);
                 pqxx::work tx_login(*conn);
                 tx_login.exec(query);
                 tx_login.commit();
             } else throw std::invalid_argument("user already connected");
         } else {
             // Else, create a new entry in the database and fetch the id and balance, and set the logged_in field to true
-            query = "SELECT insert_user(" + conn->quote(userType) + ", " + conn->quote(name) + ");";
+            query = std::format("SELECT insert_user({}, {});", conn->quote(userType), conn->quote(name));
             pqxx::work tx_new_user(*conn);
             R = tx_new_user.exec(query);
             tx_new_user.commit();
@@ -54,7 +54,7 @@ void User::login() {
             id = R[0][0].as<std::string>();
             balance = 0;
         }
-        Utils::log(Utils::LogLevel::TRACE, std::cout, "User `", name, "` logged in {type: `", userType, "`, id: ", id, ", balance: ", balance, "}");
+        Utils::log(Utils::LogLevel::TRACE, std::cout, std::format("User `{}` logged in {{type: `{}`, id: {}, balance: {}}}", name, userType, id, balance));
     } catch (const pqxx::broken_connection &e) {
         throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
@@ -77,23 +77,23 @@ void User::logout() {
         auto conn = conn2Postgres("ecommerce", userType, userType);
 
         // Build the query to check if the user's logged_in field is true
-        std::string query = "SELECT logged_in FROM " + userType + "s WHERE id = " + id + ";";
+        std::string query = std::format("SELECT logged_in FROM {}s WHERE id = {};", userType, id);
         pqxx::work tx(*conn);
         pqxx::result R = tx.exec(query);
         tx.commit();
 
         if (R[0][0].as<bool>()) {
             // If the user's logged_in field is true, set the logged_in field to false
-            query = "SELECT set_logged_in(" + conn->quote(userType) + ", " + id + ", false);";
+            query = std::format("SELECT set_logged_in({}, {}, false);", userType, id);
             pqxx::work tx_logout(*conn);
             tx_logout.exec(query);
             tx_logout.commit();
-            Utils::log(Utils::LogLevel::TRACE, std::cout, "User `", name, "` logged out");
+            Utils::log(Utils::LogLevel::TRACE, std::cout, std::format("User `{}` logged out", name));
         } else throw std::invalid_argument("User is not logged in");
     } catch (const pqxx::broken_connection &e) {
         throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "An error occurred: ", e.what());
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("An error occurred: {}", e.what()));
     }
 }
 
@@ -104,7 +104,7 @@ void User::getBalance() const {
         auto conn = conn2Postgres("ecommerce", userType, userType);
 
         // Build the query
-        std::string query = "SELECT balance FROM " + userType + "s WHERE id = " + id + ";";
+        std::string query = std::format("SELECT balance FROM {}s WHERE id = {};", userType, id);
 
         // Execute the query
         pqxx::work tx(*conn);
@@ -112,11 +112,11 @@ void User::getBalance() const {
         tx.commit();
 
         // Print the result
-        if (!R.empty()) Utils::log(Utils::LogLevel::TRACE, std::cout, "Balance: ", R[0][0].as<std::string>());
+        if (!R.empty()) Utils::log(Utils::LogLevel::TRACE, std::cout, std::format("Balance: {}", R[0][0].as<std::string>()));
     } catch (const pqxx::broken_connection &e) {
         throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "An error occurred: ", e.what());
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("An error occurred: {}", e.what()));
     }
 }
 
@@ -127,7 +127,7 @@ void User::setBalance(const int32_t &balanceChange) {
         auto conn = conn2Postgres("ecommerce", userType, userType);
 
         // Build the query to call the stored procedure
-        std::string query = "SELECT set_balance(" + conn->quote(userType) + ", " + id + ", " + std::to_string(balanceChange) + ");";
+        std::string query = std::format("SELECT set_balance({}, {}, {});", userType, id, balanceChange);
 
         // Execute the query
         pqxx::work tx(*conn);
@@ -135,14 +135,14 @@ void User::setBalance(const int32_t &balanceChange) {
         tx.commit();
 
         // Print the result
-        if (!R.empty() && !R[0][0].is_null()) Utils::log(Utils::LogLevel::TRACE, std::cout, "Balance modified to ", R[0][0].as<std::string>());
+        if (!R.empty() && !R[0][0].is_null()) Utils::log(Utils::LogLevel::TRACE, std::cout, std::format("Balance modified to {}", R[0][0].as<std::string>()));
         else Utils::log(Utils::LogLevel::TRACE, std::cout, "No balance modification performed");
 
     } catch (const pqxx::sql_error &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "SQL error: ", e.what(), "Query: ", e.query());
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("SQL error: {}, Query: {}", e.what(), e.query()));
     } catch (const pqxx::broken_connection &e) {
         throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to set balance: ", e.what());
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to set balance: {}", e.what()));
     }
 }

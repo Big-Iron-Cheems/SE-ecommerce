@@ -18,11 +18,11 @@ public:
             User::login();
             loggedInSuccessfully = true;
         } catch (const std::exception &e) {
-            Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to create a Supplier: ", e.what());
+            Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to create a Supplier: {}", e.what()));
         }
     }
 
-    ~Supplier() {
+    virtual ~Supplier() {
         if (loggedInSuccessfully) User::logout();
     };
 

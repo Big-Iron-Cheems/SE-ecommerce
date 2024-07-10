@@ -18,13 +18,23 @@ int main() {
     // Testing
     {
         Customer customer("Gigio");
+        customer.setBalance(100);
         // Customer customer = Customer("Gigio");
-        Supplier supplier("Piero");
-        Transporter transporter("Pippo");
+        // Supplier supplier("Piero");
+        // Transporter transporter("Pippo");
         // customer.setBalance(-1);
         // customer.getBalance();
         // Customer customer2("Marco");
-        customer.searchProduct("mele", std::nullopt, std::nullopt, std::nullopt, "amount", true);
+        customer.searchProduct(std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::vector<std::pair<std::string, bool>>{{"amount", false}, {"price", false}});
+        // customer.addProductToCart(1, 3);
+        // customer.addProductToCart(4, 2);
+        // customer.addProductToCart(1, 47);
+
+        customer.getCart();
+        // customer.makeOrder("Via delle Palme 69");
+        // customer.clearCart();
+        // customer.getCart();
+
         // customer2.getBalance();
         // customer2.setBalance(100);
         // customer2.getBalance();

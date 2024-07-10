@@ -18,11 +18,11 @@ public:
             User::login();
             loggedInSuccessfully = true;
         } catch (const std::exception &e) {
-            Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to create a Transporter: ", e.what());
+            Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to create a Transporter: {}", e.what()));
         }
     }
 
-    ~Transporter() {
+    virtual ~Transporter() {
         if (loggedInSuccessfully) User::logout();
     };
 

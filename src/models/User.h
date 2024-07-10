@@ -7,12 +7,14 @@
  */
 class User {
 protected:
-    std::string id;      ///< Unique identifier of the user.
-    std::string name; ///< Name of the user.
-    uint32_t balance; ///< Balance of the user.
-    bool loggedInSuccessfully; ///< Whether the user logged in successfully.
+    std::string id = "0";              ///< Unique identifier of the user.
+    std::string name;                  ///< Name of the user.
+    uint32_t balance = 0;              ///< Balance of the user.
+    bool loggedInSuccessfully = false; ///< Whether the user logged in successfully.
 
-    explicit User(std::string name) : id("0"), name(std::move(name)), balance(0), loggedInSuccessfully(false) {}
+    explicit User(std::string name) : name(std::move(name)) {}
+
+    virtual ~User() = default;
 
     enum class UserType { CUSTOMER, SUPPLIER, TRANSPORTER };
 
