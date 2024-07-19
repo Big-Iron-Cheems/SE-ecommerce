@@ -27,7 +27,7 @@ void User::login() {
         auto conn = conn2Postgres("ecommerce", userType, userType);
 
         // Build the query to check if the user is already in the database
-        std::string query = std::format("SELECT id, balance, logged_in FROM {}s WHERE username = {};", userType, name);
+        std::string query = std::format("SELECT id, balance, logged_in FROM {}s WHERE username = '{}';", userType, name);
         pqxx::work tx(*conn);
         pqxx::result R = tx.exec(query);
         tx.commit();
@@ -39,14 +39,14 @@ void User::login() {
                 id = R[0][0].as<std::string>();
                 balance = R[0][1].as<uint32_t>();
 
-                query = std::format("SELECT set_logged_in({}, {}, true);", userType, id);
+                query = std::format("SELECT set_logged_in('{}', {}, true);", userType, id);
                 pqxx::work tx_login(*conn);
                 tx_login.exec(query);
                 tx_login.commit();
             } else throw std::invalid_argument("user already connected");
         } else {
             // Else, create a new entry in the database and fetch the id and balance, and set the logged_in field to true
-            query = std::format("SELECT insert_user({}, {});", conn->quote(userType), conn->quote(name));
+            query = std::format("SELECT insert_user('{}', '{}');", userType, name);
             pqxx::work tx_new_user(*conn);
             R = tx_new_user.exec(query);
             tx_new_user.commit();
@@ -84,7 +84,7 @@ void User::logout() {
 
         if (R[0][0].as<bool>()) {
             // If the user's logged_in field is true, set the logged_in field to false
-            query = std::format("SELECT set_logged_in({}, {}, false);", userType, id);
+            query = std::format("SELECT set_logged_in('{}', {}, false);", userType, id);
             pqxx::work tx_logout(*conn);
             tx_logout.exec(query);
             tx_logout.commit();

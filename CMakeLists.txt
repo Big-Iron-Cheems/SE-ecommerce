@@ -17,6 +17,8 @@ add_executable(ecommerce
         src/models/Supplier.cpp
         src/models/Transporter.cpp
         src/Utils.cpp
+        src/models/Order.cpp
+        src/models/Order.h
 )
 
 # Link to redis and postgresql (including C++ versions)

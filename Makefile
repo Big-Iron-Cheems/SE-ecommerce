@@ -1,5 +1,5 @@
 CXX := g++
-CXXFLAGS := -std=c++23 -Wall -Wextra -Wpedantic # -Werror
+CXXFLAGS := -std=c++26 -Wall -Wextra -Wpedantic # -Werror
 LDFLAGS := -lredis++ -lhiredis -lpqxx -lpq # Link to redis and postgresql (including C++ versions)
 
 SRC_DIR := src

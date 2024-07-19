@@ -22,7 +22,7 @@ public:
         }
     }
 
-    virtual ~Supplier() {
+    ~Supplier() override {
         if (loggedInSuccessfully) User::logout();
     };
 
@@ -37,7 +37,10 @@ public:
     /**
      * Retrive all products sold by the supplier.
      */
-    void getProducts() const;
+    [[maybe_unused]] void getProducts(const std::optional<std::string> &name,
+                     const std::optional<uint32_t> &priceLowerBound,
+                     const std::optional<uint32_t> &priceUpperBound,
+                     const std::optional<std::vector<std::pair<std::string, bool>>> &orderBy) const;
 
     /**
      * Add a product to the supplier's catalog.
@@ -46,13 +49,13 @@ public:
      * @param amount the stock of the product.
      * @param description the description of the product.
      */
-    void addProduct(const std::string &name, const uint32_t &price, const uint32_t &amount, const std::string &description);
+    [[maybe_unused]] void addProduct(const std::string &name, const uint32_t &price, const uint32_t &amount, const std::string &description);
 
     /**
      * Remove a product from the supplier's catalog.
      * @param productId the id of the product to remove.
      */
-    void removeProduct(const uint32_t &productId);
+    [[maybe_unused]] void removeProduct(const uint32_t &productId);
 
     /**
      * Edit a product from the supplier's catalog.
@@ -62,7 +65,7 @@ public:
      * @param amount the new stock of the product.
      * @param description the new description of the product.
      */
-    void editProduct(const uint32_t &productId,
+    [[maybe_unused]] void editProduct(const uint32_t &productId,
                      const std::optional<std::string> &name,
                      const std::optional<uint32_t> &price,
                      const std::optional<uint32_t> &amount,
@@ -73,11 +76,11 @@ public:
     /**
     * Get the history of orders.
     */
-    void getOrdersHistory() const;
+    [[maybe_unused]] void getOrdersHistory() const;
 
     /**
      * Get the status of an order.
      * @param orderId the id of the order to get the status of.
      */
-    void getOrderStatus(const uint32_t &orderId) const;
+    [[maybe_unused]] void getOrderStatus(const uint32_t &orderId) const;
 };

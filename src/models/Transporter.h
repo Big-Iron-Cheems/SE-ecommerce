@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Order.h"
 #include "User.h"
 
 /**
@@ -22,7 +23,7 @@ public:
         }
     }
 
-    virtual ~Transporter() {
+    ~Transporter() override {
         if (loggedInSuccessfully) User::logout();
     };
 
@@ -40,17 +41,17 @@ public:
     /**
     * Get the history of orders.
     */
-    void getOrdersHistory() const;
+    [[maybe_unused]] void getOrdersHistory() const;
 
     /**
      * From the orders to deliver, get the customer's name and the address to deliver the order.
      */
-    void getOngoingOrdersInfo() const;
+    [[maybe_unused]] void getOngoingOrdersInfo() const;
 
     /**
      * Set the status of an order.
      * @param orderId id of the order to update.
-     * @param status status to set. // TODO: define the possible statuses as an enum.
+     * @param orderStatus status to set.
      */
-    void setOrderStatus(const uint32_t &orderId, const std::string &status);
+    [[maybe_unused]] void setOrderStatus(const uint32_t &orderId, Order::Status orderStatus);
 };

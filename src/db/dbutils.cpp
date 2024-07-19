@@ -163,12 +163,12 @@ void createFunction(std::unique_ptr<pqxx::connection> &conn,
     }
 
     // Build the query
-    std::string query = "CREATE OR REPLACE FUNCTION " + functionName + "(";
+    std::string query = std::format("CREATE OR REPLACE FUNCTION {}(", functionName);;
     for (size_t i = 0; i < args.size(); ++i) {
-        query += args[i].first + " " + args[i].second;
+        query += std::format("{} {}", args[i].first, args[i].second);
         if (i < args.size() - 1) query += ", ";
     }
-    query += ") RETURNS " + returnType + " AS $$" + body + "\n$$ LANGUAGE plpgsql SECURITY DEFINER;";
+    query += std::format(") RETURNS {} AS $${}\n$$ LANGUAGE plpgsql SECURITY DEFINER;", returnType, body);
 
     // Execute the query
     try {
@@ -279,7 +279,7 @@ void printRow(const pqxx::row &row) {
 
 std::unique_ptr<pqxx::connection> initDatabase() {
     // Connect to the default 'postgres' database as the 'postgres' user
-    std::unique_ptr<pqxx::connection> conn = conn2Postgres("postgres", "postgres", "");
+    auto conn = conn2Postgres("postgres", "postgres", "");
 
     // Create the 'ecommerce' user as `postgres` if it does not exist
     createUser(conn, "ecommerce", "ecommerce", "NOSUPERUSER CREATEDB NOCREATEROLE INHERIT LOGIN NOREPLICATION NOBYPASSRLS");
@@ -313,7 +313,10 @@ std::unique_ptr<pqxx::connection> initDatabase() {
     return conn;
 }
 
-void initTypes(std::unique_ptr<pqxx::connection> &conn) { createType(conn, "user_role", "ENUM ('customer', 'supplier', 'transporter')"); }
+void initTypes(std::unique_ptr<pqxx::connection> &conn) {
+    createType(conn, "user_role", "ENUM ('customer', 'supplier', 'transporter')");
+    createType(conn, "order_status", "ENUM ('shipped', 'delivered', 'cancelled')");
+}
 
 void initTables(std::unique_ptr<pqxx::connection> &conn) {
     // Seen only by the admins
@@ -357,14 +360,15 @@ void initTables(std::unique_ptr<pqxx::connection> &conn) {
     )"); ///< Products listed in an order
 
     // Grant permissions // TODO: set all perms accordingly
-    execCommand(conn, "GRANT SELECT ON customers TO customer");
+    // TODO: all grants should be reverted, and instead use procedures to access the data
+    execCommand(conn, "GRANT SELECT ON customers TO customer, transporter");
     execCommand(conn, "GRANT SELECT ON suppliers TO supplier");
     execCommand(conn, "GRANT SELECT ON transporters TO transporter");
     // execCommand(conn, "GRANT SELECT ON suppliers TO customer, supplier, transporter");
     // execCommand(conn, "GRANT SELECT ON transporters TO customer, supplier, transporter");
     execCommand(conn, "GRANT SELECT ON products TO customer, supplier");
-    // execCommand(conn, "GRANT SELECT ON orders TO customer, supplier, transporter");
-    // execCommand(conn, "GRANT SELECT ON order_items TO customer, supplier, transporter");
+    execCommand(conn, "GRANT SELECT ON orders TO customer, supplier, transporter");
+    execCommand(conn, "GRANT SELECT ON order_items TO customer, supplier, transporter");
 }
 
 void initFunctions(std::unique_ptr<pqxx::connection> &conn) {
@@ -435,8 +439,92 @@ void initFunctions(std::unique_ptr<pqxx::connection> &conn) {
         RETURN new_balance;
     END;)"); ///< Update the balance in the appropriate table and retrieve the new balance
 
+    // Customers
+
+    // Suppliers
+    createFunction(conn, "add_product", {{"name", "VARCHAR(255)"}, {"supplier_id", "INT"}, {"price", "INT"}, {"amount", "INT"}, {"description", "VARCHAR(255)"}}, "INT", R"(
+    DECLARE
+        new_id INT;
+    BEGIN
+        -- Insert a new product into the products table and return its id
+        INSERT INTO products (name, supplier_id, price, amount, description)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id INTO new_id;
+        RETURN new_id;
+    END;)"); ///< Add a product to the supplier's catalog
+    createFunction(conn, "remove_product", {{"product_id", "INT"}}, "INT", R"(
+    DECLARE
+        removed_id INT;
+    BEGIN
+        -- Check if the product exists
+        SELECT id INTO removed_id FROM products WHERE id = $1;
+
+        -- If the product does not exist, return -1
+        IF removed_id IS NULL THEN
+            RETURN -1;
+        END IF;
+
+        -- Remove the product from the products table and return its id
+        DELETE FROM products
+        WHERE id = $1
+        RETURNING id INTO removed_id;
+
+        RETURN removed_id;
+    END;)"); ///< Remove a product from the supplier's catalog
+    createFunction(conn, "edit_product", {{"product_id", "INT"}, {"new_name", "VARCHAR(255)"}, {"new_price", "INT"}, {"new_amount", "INT"}, {"new_description", "VARCHAR(255)"}},
+                   "INT", R"(
+    DECLARE
+        edited_id INT;
+    BEGIN
+        -- Check if the product exists
+        SELECT id INTO edited_id FROM products WHERE id = $1;
+
+        -- If the product does not exist, return -1
+        IF edited_id IS NULL THEN
+            RETURN -1;
+        END IF;
+
+        -- Update the product in the products table and return its id
+        UPDATE products
+        SET name = COALESCE(new_name, products.name),
+            price = COALESCE(new_price, products.price),
+            amount = COALESCE(new_amount, products.amount),
+            description = COALESCE(new_description, products.description)
+        WHERE id = product_id
+        RETURNING id INTO edited_id;
+
+        RETURN edited_id;
+    END;)"); ///< Edit a product from the supplier's catalog
+
+    // Transporters
+    createFunction(conn, "set_order_status", {{"transporter_id", "INT"}, {"order_id", "INT"}, {"new_status", "order_status"}}, "VOID", R"(
+    DECLARE
+        current_status order_status;
+    BEGIN
+        -- Check if the order exists and is handled by the given transporter
+        SELECT o.status INTO current_status FROM orders o WHERE o.id = order_id AND o.transporter_id = $1;
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'Order does not exist or is not handled by this transporter.';
+        END IF;
+
+        -- Status validation
+        IF current_status = 'delivered' OR current_status = 'cancelled' THEN
+            RAISE EXCEPTION 'Cannot change status from %', current_status;
+        END IF;
+
+        -- Update the order status
+        UPDATE orders SET status = new_status WHERE id = order_id;
+    END;
+    )"); ///< Set the status of an order
+
     // Grant the EXECUTE permission to the respective users
     execCommand(conn, "GRANT EXECUTE ON FUNCTION insert_user(user_role, VARCHAR) TO customer, supplier, transporter;");
     execCommand(conn, "GRANT EXECUTE ON FUNCTION set_logged_in(user_role, INT, BOOL) TO customer, supplier, transporter;");
     execCommand(conn, "GRANT EXECUTE ON FUNCTION set_balance(user_role, INT, INT) TO customer, supplier, transporter;");
+
+    execCommand(conn, "GRANT EXECUTE ON FUNCTION add_product(VARCHAR(255), INT, INT, INT, VARCHAR(255)) TO supplier;");
+    execCommand(conn, "GRANT EXECUTE ON FUNCTION remove_product(INT) TO supplier;");
+    execCommand(conn, "GRANT EXECUTE ON FUNCTION edit_product(INT, VARCHAR(255), INT, INT, VARCHAR(255)) TO supplier;");
+
+    execCommand(conn, "GRANT EXECUTE ON FUNCTION set_order_status(INT, INT, order_status) TO transporter;");
 }

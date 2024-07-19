@@ -30,17 +30,12 @@ private:
     }
 
 public:
-    Utils() = delete; ///< Default constructor - deleted
-
-    Utils(const Utils &other) = delete; ///< Copy constructor - deleted
-
-    Utils(Utils &&other) = delete; ///< Move constructor - deleted
-
+    Utils() = delete;                              ///< Default constructor - deleted
+    Utils(const Utils &other) = delete;            ///< Copy constructor - deleted
+    Utils(Utils &&other) = delete;                 ///< Move constructor - deleted
     Utils &operator=(const Utils &other) = delete; ///< Copy assignment operator - deleted
-
-    Utils &operator=(Utils &&other) = delete; ///< Move assignment operator - deleted
-
-    ~Utils() = delete; ///< Destructor - deleted
+    Utils &operator=(Utils &&other) = delete;      ///< Move assignment operator - deleted
+    ~Utils() = delete;                             ///< Destructor - deleted
 
 
     /**

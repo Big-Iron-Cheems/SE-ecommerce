@@ -54,11 +54,11 @@ public:
     /**
      * Get the balance of the user.
      */
-    void getBalance() const;
+    [[maybe_unused]] void getBalance() const;
 
     /**
      * Set the balance of the user. Can add/remove money from the balance.
      * @param balanceChange the amount of money to add/remove from the balance.
      */
-    void setBalance(const int32_t &balanceChange);
+    [[maybe_unused]] void setBalance(const int32_t &balanceChange);
 };
