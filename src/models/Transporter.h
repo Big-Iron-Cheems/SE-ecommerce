@@ -16,6 +16,7 @@ protected:
 public:
     explicit Transporter(std::string name) : User(std::move(name)) {
         try {
+            User::openLogFile();
             User::login();
             loggedInSuccessfully = true;
         } catch (const std::exception &e) {

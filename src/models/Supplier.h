@@ -15,6 +15,7 @@ protected:
 public:
     explicit Supplier(std::string name) : User(std::move(name)) {
         try {
+            User::openLogFile();
             User::login();
             loggedInSuccessfully = true;
         } catch (const std::exception &e) {

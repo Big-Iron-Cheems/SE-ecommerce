@@ -61,7 +61,7 @@ void Customer::searchProduct(const std::optional<std::string> &name,
     } catch (const pqxx::broken_connection &e) {
         throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to search products: {}", e.what()));
+        Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to search products: {}", e.what()));
     }
 }
 
@@ -76,9 +76,9 @@ void Customer::addProductToCart(const uint32_t &productId, const std::optional<u
 
     // Validate amount
     if (amount.has_value() && amount.value() <= 0) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to add product to cart, invalid amount: {}", amount.value()));
+        Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to add product to cart, invalid amount: {}", amount.value()));
         return;
-    } else if (!amount.has_value()) Utils::log(Utils::LogLevel::TRACE, std::cout, "Quantity not provided, defaulting to 1.");
+    } else if (!amount.has_value()) Utils::log(Utils::LogLevel::TRACE, *logFile, "Quantity not provided, defaulting to 1.");
 
 
     try {
@@ -101,13 +101,13 @@ void Customer::addProductToCart(const uint32_t &productId, const std::optional<u
         std::unordered_map<std::string, std::string> productData{{"name", name}, {"supplierId", supplierId}, {"price", price}, {"amount", std::to_string(amount.value_or(1))}};
         rdConn->hset(productKey, productData.begin(), productData.end());
 
-        Utils::log(Utils::LogLevel::TRACE, std::cout, std::format("Added {}x `{}` to the cart.", amount.value_or(1), name));
+        Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Added {}x `{}` to the cart.", amount.value_or(1), name));
     } catch (const pqxx::broken_connection &e) {
         throw; // Rethrow the exception to propagate it to the caller
     } catch (const sw::redis::Error &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to add product to cart: {}", e.what()));
+        Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to add product to cart: {}", e.what()));
     } catch (const std::exception &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to add product to cart: {}", e.what()));
+        Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to add product to cart: {}", e.what()));
     }
 }
 
@@ -124,9 +124,9 @@ void Customer::removeProductFromCart(const uint32_t &productId, const std::optio
 
     // Validate amount
     if (amount.has_value() && amount.value() <= 0) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to remove product from cart, invalid amount: {}", amount.value()));
+        Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to remove product from cart, invalid amount: {}", amount.value()));
         return;
-    } else if (!amount.has_value()) Utils::log(Utils::LogLevel::TRACE, std::cout, "Quantity not provided, defaulting to max.");
+    } else if (!amount.has_value()) Utils::log(Utils::LogLevel::TRACE, *logFile, "Quantity not provided, defaulting to max.");
 
     try {
         // Connect to the redis server
@@ -138,10 +138,10 @@ void Customer::removeProductFromCart(const uint32_t &productId, const std::optio
         // Get the product's current amount to decide if and how much to remove
         std::optional<std::string> currentQuantity = conn->hget(productKey, "amount");
         if (!currentQuantity.has_value()) {
-            Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to remove product from cart, product not found in cart.");
+            Utils::log(Utils::LogLevel::ERROR, *logFile, "Failed to remove product from cart, product not found in cart.");
             return;
         } else if (amount.has_value() && std::stoi(currentQuantity.value()) < static_cast<int>(amount.value())) {
-            Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to remove product from cart, not enough amount in cart.");
+            Utils::log(Utils::LogLevel::ERROR, *logFile, "Failed to remove product from cart, not enough amount in cart.");
             return;
         }
 
@@ -153,7 +153,7 @@ void Customer::removeProductFromCart(const uint32_t &productId, const std::optio
         }
 
     } catch (sw::redis::Error &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to remove product from cart: {}", e.what()));
+        Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to remove product from cart: {}", e.what()));
     }
 }
 
@@ -165,7 +165,7 @@ std::map<std::string, std::unordered_map<std::string, std::string>> Customer::ge
         auto conn = conn2Redis();
 
         // Retrieve the prodKeys of the products in the cart of the customer
-        std::string pattern = std::format("cart:{}:*", id);;
+        std::string pattern = std::format("cart:{}:*", id);
         std::unordered_set<std::string> prodKeys;
         long long cursor = 0LL;
         do {
@@ -189,10 +189,10 @@ std::map<std::string, std::unordered_map<std::string, std::string>> Customer::ge
             totalPrice += std::stoi(prodData["price"]) * std::stoi(prodData["amount"]);
         }
         oss << "\nTotal price: " << totalPrice << std::endl;
-        Utils::log(Utils::LogLevel::TRACE, std::cout, oss.str());
+        Utils::log(Utils::LogLevel::TRACE, *logFile, oss.str());
 
     } catch (const sw::redis::Error &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to get cart: {}", e.what()));
+        Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to get cart: {}", e.what()));
     }
 
     return completeCart;
@@ -204,7 +204,7 @@ void Customer::clearCart() {
         auto conn = conn2Redis();
 
         // Retrieve all keys for the customer's cart products
-        std::string pattern = std::format("cart:{}:*", id);;
+        std::string pattern = std::format("cart:{}:*", id);
         std::unordered_set<std::string> keysToDelete;
         auto cursor = 0LL;
         do {
@@ -220,9 +220,9 @@ void Customer::clearCart() {
         std::string mainCartKey = "cart:" + id;
         conn->del(mainCartKey);
 
-        Utils::log(Utils::LogLevel::TRACE, std::cout, "Cart cleared.");
+        Utils::log(Utils::LogLevel::TRACE, *logFile, "Cart cleared.");
     } catch (const sw::redis::Error &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to clear cart: {}", e.what()));
+        Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to clear cart: {}", e.what()));
     }
 }
 
@@ -254,7 +254,7 @@ void Customer::makeOrder(const std::string &address) {
         auto conn = conn2Postgres("ecommerce", "customer", "customer");
 
         if (cart.empty()) {
-            Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to make order, cart is empty.");
+            Utils::log(Utils::LogLevel::ERROR, *logFile, "Failed to make order, cart is empty.");
             return;
         }
 
@@ -267,12 +267,12 @@ void Customer::makeOrder(const std::string &address) {
 
             if (R.empty()) {
                 // The product is no longer available
-                Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to make order, product not found in the database.");
+                Utils::log(Utils::LogLevel::ERROR, *logFile, "Failed to make order, product not found in the database.");
                 return;
             } else {
                 // The amount we want to order is greater than the amount available
                 if (std::stoi(productData["amount"]) > R[0]["amount"].as<int32_t>()) {
-                    Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to make order, not enough stock for product {}", productKey));
+                    Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to make order, not enough stock for product {}", productKey));
                     return;
                 }
             }
@@ -309,7 +309,7 @@ void Customer::makeOrder(const std::string &address) {
     } catch (const pqxx::broken_connection &e) {
         throw; // Rethrow the exception to propagate it to the caller
     } catch (const sw::redis::Error &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to make order: {}", e.what()));
+        Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to make order: {}", e.what()));
     }
 }
 
@@ -330,7 +330,7 @@ void Customer::cancelOrder(const uint32_t &orderId) {
         tx.commit();
 
         if (R.empty()) {
-            Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to cancel order, order not found.");
+            Utils::log(Utils::LogLevel::ERROR, *logFile, "Failed to cancel order, order not found.");
             return;
         }
         // TODO: check the status enum to see if it can be actually cancelled
@@ -340,11 +340,11 @@ void Customer::cancelOrder(const uint32_t &orderId) {
         tx.exec(query);
         tx.commit();
 
-        Utils::log(Utils::LogLevel::TRACE, std::cout, std::format("Order cancelled: {}", orderId));
+        Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Order cancelled: {}", orderId));
     } catch (const pqxx::broken_connection &e) {
         throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to cancel order: {}", e.what()));
+        Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to cancel order: {}", e.what()));
     }
 }
 
@@ -369,15 +369,15 @@ void Customer::getOrderStatus(const uint32_t &orderId) const {
         tx.commit();
 
         if (R.empty()) {
-            Utils::log(Utils::LogLevel::ERROR, std::cerr, "Failed to get order status, order not found.");
+            Utils::log(Utils::LogLevel::ERROR, *logFile, "Failed to get order status, order not found.");
             return;
         }
 
-        Utils::log(Utils::LogLevel::TRACE, std::cout, std::format("Order {} status: {}", orderId, R[0]["status"].c_str()));
+        Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Order {} status: {}", orderId, R[0]["status"].c_str()));
     } catch (const pqxx::broken_connection &e) {
         throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to fetch order status: {}", e.what()));
+        Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to fetch order status: {}", e.what()));
     }
 }
 
@@ -399,13 +399,13 @@ void Customer::getOrdersHistory() const {
         tx.commit();
 
         if (R.empty()) {
-            Utils::log(Utils::LogLevel::TRACE, std::cout, "No order history.");
+            Utils::log(Utils::LogLevel::TRACE, *logFile, "No order history.");
             return;
         }
         printRows(R);
     } catch (const pqxx::broken_connection &e) {
         throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to fetch order history: {}", e.what()));
+        Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to fetch order history: {}", e.what()));
     }
 }

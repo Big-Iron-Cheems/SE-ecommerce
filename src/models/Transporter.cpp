@@ -25,14 +25,14 @@ void Transporter::getOrdersHistory() const {
         tx.commit();
 
         if (R.empty()) {
-            Utils::log(Utils::LogLevel::TRACE, std::cout, "No order history.");
+            Utils::log(Utils::LogLevel::TRACE, *logFile, "No order history.");
             return;
         }
         printRows(R);
     } catch (const pqxx::broken_connection &e) {
         throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to fetch order history: {}", e.what()));
+        Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to fetch order history: {}", e.what()));
     }
 }
 
@@ -49,14 +49,14 @@ void Transporter::getOngoingOrdersInfo() const {
         tx.commit();
 
         if (R.empty()) {
-            Utils::log(Utils::LogLevel::TRACE, std::cout, "No ongoing orders.");
+            Utils::log(Utils::LogLevel::TRACE, *logFile, "No ongoing orders.");
             return;
         }
         printRows(R);
     } catch (const pqxx::broken_connection &e) {
         throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to fetch ongoing orders: {}", e.what()));
+        Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to fetch ongoing orders: {}", e.what()));
     }
 }
 
@@ -72,10 +72,10 @@ void Transporter::setOrderStatus(const uint32_t &orderId, Order::Status orderSta
         tx.exec(query);
         tx.commit();
 
-        Utils::log(Utils::LogLevel::TRACE, std::cout, std::format("Order {} status updated to {}.", orderId, Order::orderStatusToString(orderStatus)));
+        Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Order {} status updated to {}.", orderId, Order::orderStatusToString(orderStatus)));
     } catch (const pqxx::broken_connection &e) {
         throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to update order status: {}", e.what()));
+        Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to update order status: {}", e.what()));
     }
 }

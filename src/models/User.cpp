@@ -9,8 +9,11 @@ std::string User::userTypeToString(User::UserType userType) {
     }
 }
 
+void User::openLogFile() {
+    if (!logFile) logFile = std::make_shared<std::ofstream>(std::format("{}.log", userTypeToString(getUserType())), std::ios::out | std::ios::app);
+}
+
 void User::login() {
-    //TODO: maybe make this return the id-balance pair so it can be set directly in the constructor
     /*
      * This function should establish a connection to the db to allow creating an instance of a User subclass.
      * In order, it should:
@@ -54,7 +57,7 @@ void User::login() {
             id = R[0][0].as<std::string>();
             balance = 0;
         }
-        Utils::log(Utils::LogLevel::TRACE, std::cout, std::format("User `{}` logged in {{type: `{}`, id: {}, balance: {}}}", name, userType, id, balance));
+        Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("User `{}` logged in {{type: `{}`, id: {}, balance: {}}}", name, userType, id, balance));
     } catch (const pqxx::broken_connection &e) {
         throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
@@ -88,12 +91,12 @@ void User::logout() {
             pqxx::work tx_logout(*conn);
             tx_logout.exec(query);
             tx_logout.commit();
-            Utils::log(Utils::LogLevel::TRACE, std::cout, std::format("User `{}` logged out", name));
+            Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("User `{}` logged out", name));
         } else throw std::invalid_argument("User is not logged in");
     } catch (const pqxx::broken_connection &e) {
         throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("An error occurred: {}", e.what()));
+        Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("An error occurred: {}", e.what()));
     }
 }
 
@@ -112,11 +115,11 @@ void User::getBalance() const {
         tx.commit();
 
         // Print the result
-        if (!R.empty()) Utils::log(Utils::LogLevel::TRACE, std::cout, std::format("Balance: {}", R[0][0].as<std::string>()));
+        if (!R.empty()) Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Balance: {}", R[0][0].as<std::string>()));
     } catch (const pqxx::broken_connection &e) {
         throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("An error occurred: {}", e.what()));
+        Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("An error occurred: {}", e.what()));
     }
 }
 
@@ -135,14 +138,14 @@ void User::setBalance(const int32_t &balanceChange) {
         tx.commit();
 
         // Print the result
-        if (!R.empty() && !R[0][0].is_null()) Utils::log(Utils::LogLevel::TRACE, std::cout, std::format("Balance modified to {}", R[0][0].as<std::string>()));
-        else Utils::log(Utils::LogLevel::TRACE, std::cout, "No balance modification performed");
+        if (!R.empty() && !R[0][0].is_null()) Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Balance modified to {}", R[0][0].as<std::string>()));
+        else Utils::log(Utils::LogLevel::TRACE, *logFile, "No balance modification performed");
 
     } catch (const pqxx::sql_error &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("SQL error: {}, Query: {}", e.what(), e.query()));
+        Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("SQL error: {}, Query: {}", e.what(), e.query()));
     } catch (const pqxx::broken_connection &e) {
         throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to set balance: {}", e.what()));
+        Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to set balance: {}", e.what()));
     }
 }

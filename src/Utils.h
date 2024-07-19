@@ -1,7 +1,9 @@
 #pragma once
 
+#include <fstream>
 #include <iostream>
 #include <sstream>
+#include <typeinfo>
 #include <utility>
 
 class Utils {

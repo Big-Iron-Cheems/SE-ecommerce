@@ -7,6 +7,8 @@
  */
 class User {
 protected:
+    std::shared_ptr<std::ofstream> logFile; ///< Log file for the user, shared among subclasses.
+
     std::string id = "0";              ///< Unique identifier of the user.
     std::string name;                  ///< Name of the user.
     uint32_t balance = 0;              ///< Balance of the user.
@@ -35,6 +37,13 @@ protected:
      * @return the string representation of the user type.
      */
     static std::string userTypeToString(UserType userType);
+
+    /**
+     * Open the log file for the user, if it is not already open.
+     * The log file is named after the user type.
+     * Multiple users of the same type use the same logger.
+     */
+    void openLogFile();
 
     // Account related methods
 

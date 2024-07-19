@@ -16,10 +16,11 @@ protected:
 public:
     explicit Customer(std::string name) : User(std::move(name)) {
         try {
+            User::openLogFile();
             User::login();
             loggedInSuccessfully = true;
         } catch (const std::exception &e) {
-            Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to create a Customer: {}", e.what()));
+            Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to create a Customer: {}", e.what()));
         }
     };
 
