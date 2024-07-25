@@ -130,7 +130,7 @@ void User::setBalance(const int32_t &balanceChange) {
         auto conn = conn2Postgres("ecommerce", userType, userType);
 
         // Build the query to call the stored procedure
-        std::string query = std::format("SELECT set_balance({}, {}, {});", userType, id, balanceChange);
+        std::string query = std::format("SELECT set_balance('{}', {}, {});", userType, id, balanceChange);
 
         // Execute the query
         pqxx::work tx(*conn);

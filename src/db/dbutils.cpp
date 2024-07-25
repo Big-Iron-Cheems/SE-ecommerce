@@ -363,7 +363,7 @@ void initTables(std::unique_ptr<pqxx::connection> &conn) {
     // TODO: all grants should be reverted, and instead use procedures to access the data
     execCommand(conn, "GRANT SELECT ON customers TO customer, transporter");
     execCommand(conn, "GRANT SELECT ON suppliers TO supplier");
-    execCommand(conn, "GRANT SELECT ON transporters TO transporter");
+    execCommand(conn, "GRANT SELECT ON transporters TO customer, transporter");
     // execCommand(conn, "GRANT SELECT ON suppliers TO customer, supplier, transporter");
     // execCommand(conn, "GRANT SELECT ON transporters TO customer, supplier, transporter");
     execCommand(conn, "GRANT SELECT ON products TO customer, supplier");
@@ -440,6 +440,29 @@ void initFunctions(std::unique_ptr<pqxx::connection> &conn) {
     END;)"); ///< Update the balance in the appropriate table and retrieve the new balance
 
     // Customers
+    createFunction(conn, "make_order", {{ "customer_id", "INT" }, { "total_price", "INT" }, { "address", "VARCHAR(255)" }}, "INT", R"(
+    DECLARE
+        new_order_id INT;
+    BEGIN
+        -- Insert a new order into the orders table and return its id
+        INSERT INTO orders (customer_id, total_price, transporter_id, status, address, timestamp)
+        VALUES ($1, $2, (SELECT id FROM transporters ORDER BY RANDOM() LIMIT 1), 'pending', $3, NOW())
+        RETURNING id INTO new_order_id;
+
+        RETURN new_order_id;
+    END;)"); ///< Make an order from the products in the cart
+    createFunction(conn, "add_order_item", {{ "order_id", "INT" }, { "product_id", "INT" }, { "quantity", "INT" }, { "price", "INT" }, { "supplier_id", "INT" }}, "VOID", R"(
+    BEGIN
+        -- Insert a new product into the order_items table
+        INSERT INTO order_items (order_id, product_id, quantity, price, supplier_id)
+        VALUES ($1, $2, $3, $4, $5);
+
+        -- Update the products table to decrement the stock
+        UPDATE products
+        SET amount = amount - $3
+        WHERE id = $2;
+    END;)"); ///< Add a product to the order_items table
+
 
     // Suppliers
     createFunction(conn, "add_product", {{"name", "VARCHAR(255)"}, {"supplier_id", "INT"}, {"price", "INT"}, {"amount", "INT"}, {"description", "VARCHAR(255)"}}, "INT", R"(
@@ -521,6 +544,9 @@ void initFunctions(std::unique_ptr<pqxx::connection> &conn) {
     execCommand(conn, "GRANT EXECUTE ON FUNCTION insert_user(user_role, VARCHAR) TO customer, supplier, transporter;");
     execCommand(conn, "GRANT EXECUTE ON FUNCTION set_logged_in(user_role, INT, BOOL) TO customer, supplier, transporter;");
     execCommand(conn, "GRANT EXECUTE ON FUNCTION set_balance(user_role, INT, INT) TO customer, supplier, transporter;");
+
+    execCommand(conn, "GRANT EXECUTE ON FUNCTION make_order(INT, INT, VARCHAR(255)) TO customer;");
+    execCommand(conn, "GRANT EXECUTE ON FUNCTION add_order_item(INT, INT, INT, INT, INT) TO customer;");
 
     execCommand(conn, "GRANT EXECUTE ON FUNCTION add_product(VARCHAR(255), INT, INT, INT, VARCHAR(255)) TO supplier;");
     execCommand(conn, "GRANT EXECUTE ON FUNCTION remove_product(INT) TO supplier;");

@@ -18,12 +18,16 @@ int main() {
     // Testing
     {
         Customer customer("Gigio");
+        // customer.addProductToCart(8, 2);
+        // customer.addProductToCart(6, 3);
+        // customer.addProductToCart(5,1);
+        // customer.makeOrder("Piazza Albania 420");
         // customer.getCart();
         // customer.searchProduct("mele", std::nullopt, std::nullopt, std::nullopt, std::nullopt);
         // customer.setBalance(100);
         // Customer customer = Customer("Gigio");
         // Supplier supplier("Piero");
-        Transporter transporter("Pippo");
+        // Transporter transporter("Pippo");
         // customer.setBalance(-1);
         // customer.getBalance();
         // Customer customer2("Marco");
@@ -53,7 +57,7 @@ int main() {
         // supplier.setBalance(100);
         // supplier.getBalance();
 
-        Supplier supplier("Piero");
+        // Supplier supplier("Piero");
         // supplier.getProducts("mele", std::nullopt, std::nullopt, std::nullopt);
         // supplier.addProduct("arancia", 3, 14, "arancia di sicilia");
         // supplier.getProducts("arancia", std::nullopt, std::nullopt, std::nullopt);

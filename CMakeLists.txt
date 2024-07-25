@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.27)
 project(ecommerce)
 
 set(CMAKE_CXX_STANDARD 26)
+set(CMAKE_CXX_STANDARD_REQUIRED TRUE) # Enforce the standard
+set(CMAKE_CXX_EXTENSIONS OFF) # Disable compiler-specific extensions
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic") #-Werror
 
 # Specify the directories for the binary and object files

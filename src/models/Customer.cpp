@@ -97,11 +97,16 @@ void Customer::addProductToCart(const uint32_t &productId, const std::optional<u
         auto rdConn = conn2Redis();
 
         std::string productKey = std::format("cart:{}:{}", id, productId);
-
         std::unordered_map<std::string, std::string> productData{{"name", name}, {"supplierId", supplierId}, {"price", price}, {"amount", std::to_string(amount.value_or(1))}};
         rdConn->hset(productKey, productData.begin(), productData.end());
 
-        Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Added {}x `{}` to the cart.", amount.value_or(1), name));
+        // Update the total price of the cart
+        uint32_t productTotalPrice = std::stoi(price) * amount.value_or(1);
+        std::string totalPriceKey = std::format("cart:{}:total_price", id);
+        if (!rdConn->exists(totalPriceKey)) rdConn->set(totalPriceKey, "0");
+        rdConn->incrby(totalPriceKey, productTotalPrice);
+
+        Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Added {}x `{}` to the cart. Total price updated by {}", amount.value_or(1), name, productTotalPrice));
     } catch (const pqxx::broken_connection &e) {
         throw; // Rethrow the exception to propagate it to the caller
     } catch (const sw::redis::Error &e) {
@@ -137,6 +142,7 @@ void Customer::removeProductFromCart(const uint32_t &productId, const std::optio
 
         // Get the product's current amount to decide if and how much to remove
         std::optional<std::string> currentQuantity = conn->hget(productKey, "amount");
+        std::optional<std::string> price = conn->hget(productKey, "price");
         if (!currentQuantity.has_value()) {
             Utils::log(Utils::LogLevel::ERROR, *logFile, "Failed to remove product from cart, product not found in cart.");
             return;
@@ -145,13 +151,22 @@ void Customer::removeProductFromCart(const uint32_t &productId, const std::optio
             return;
         }
 
+        // Calculate the total price to be subtracted
+        uint32_t productTotalPrice = std::stoi(price.value()) * amount.value_or(std::stoi(currentQuantity.value()));
+
         // Remove the product from the cart
         if (amount.has_value() && std::stoi(currentQuantity.value()) > static_cast<int>(amount.value())) {
-            conn->hset(productKey, "amount", std::to_string(std::stoi(currentQuantity.value()) - amount.value()));
+            conn->hincrby(productKey, "amount", -static_cast<int>(amount.value()));
         } else {
             conn->del(productKey);
         }
 
+        // Update the total price of the cart
+        std::string totalPriceKey = std::format("cart:{}:total_price", id);
+        conn->decrby(totalPriceKey, productTotalPrice);
+
+        Utils::log(Utils::LogLevel::TRACE, *logFile,
+                   std::format("Removed {}x product from the cart. Total price updated by {}", amount.value_or(std::stoi(currentQuantity.value())), -productTotalPrice));
     } catch (sw::redis::Error &e) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to remove product from cart: {}", e.what()));
     }
@@ -171,6 +186,7 @@ std::map<std::string, std::unordered_map<std::string, std::string>> Customer::ge
         do {
             cursor = conn->scan(cursor, pattern, 10, std::inserter(prodKeys, prodKeys.end()));
         } while (cursor != 0);
+        prodKeys.erase(std::format("cart:{}:total_price", id));
 
         // Iterate over the prodKeys and print the contents of the hashsets
         uint32_t totalPrice = 0;
@@ -178,7 +194,7 @@ std::map<std::string, std::unordered_map<std::string, std::string>> Customer::ge
         for (const auto &key: prodKeys) {
             std::unordered_map<std::string, std::string> prodData;
             conn->hgetall(key, std::inserter(prodData, prodData.begin()));
-            completeCart[id] = prodData;
+            completeCart[key.substr(key.find(':', key.find(':') + 1) + 1)] = prodData;
 
             oss << "\nProduct: " << key << " {\n";
             for (const auto &[field, value]: prodData) {
@@ -196,6 +212,22 @@ std::map<std::string, std::unordered_map<std::string, std::string>> Customer::ge
     }
 
     return completeCart;
+}
+
+uint32_t Customer::getCartTotalPrice() const {
+    try {
+        // Connect to the redis server
+        auto conn = conn2Redis();
+
+        // Get the total price
+        std::string totalPriceKey = std::format("cart:{}:total_price", id);
+        std::optional<std::string> totalPrice = conn->get(totalPriceKey);
+
+        return totalPrice.has_value() ? std::stoi(totalPrice.value()) : 0;
+    } catch (const sw::redis::Error &e) {
+        Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to get total price of cart: {}", e.what()));
+        return 0;
+    }
 }
 
 void Customer::clearCart() {
@@ -238,74 +270,70 @@ void Customer::makeOrder(const std::string &address) {
      * 3. Remove the items from the Redis cart.
      * 4. Update the customer's and suppliers' balances.
      * 5. Update the products and orders tables.
-     *
-     *
      */
 
     try {
-        // Connect to the redis server
-        auto rdConn = conn2Redis();
+        // Verify that the user has enough balance
+        uint32_t totalPrice = getCartTotalPrice();
+        if (balance < totalPrice) {
+            Utils::log(Utils::LogLevel::ERROR, *logFile, "Failed to make order, not enough balance.");
+            return;
+        }
 
         // Get the cart
         auto cart = getCart();
-
-        // Validate the cart
-        // Connect to `ecommerce` db as `customer` user using conn2Postgres
-        auto conn = conn2Postgres("ecommerce", "customer", "customer");
-
         if (cart.empty()) {
             Utils::log(Utils::LogLevel::ERROR, *logFile, "Failed to make order, cart is empty.");
             return;
         }
 
-        // Verify availability of all items in the cart
-        for (auto &[productKey, productData]: cart) {
-            std::string query = std::format("SELECT * FROM products WHERE id = {};", productKey);
-            pqxx::work tx(*conn);
-            pqxx::result R = tx.exec(query);
-            tx.commit();
+        // Connect to the redis server
+        auto rdConn = conn2Redis();
 
-            if (R.empty()) {
-                // The product is no longer available
-                Utils::log(Utils::LogLevel::ERROR, *logFile, "Failed to make order, product not found in the database.");
-                return;
-            } else {
-                // The amount we want to order is greater than the amount available
-                if (std::stoi(productData["amount"]) > R[0]["amount"].as<int32_t>()) {
-                    Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to make order, not enough stock for product {}", productKey));
-                    return;
-                }
-            }
-        }
-
-        // Create an order with the items in the cart
+        // Connect to `ecommerce` db as `customer` user using conn2Postgres
+        auto conn = conn2Postgres("ecommerce", "customer", "customer");
         pqxx::work tx(*conn);
 
         // Step 1: Insert the new order and get the order ID
-        std::string insertOrderQuery =
-                std::format("INSERT INTO orders (customer_id, total_price, transporter_id, status, address, timestamp) VALUES ({}, 0, NULL, 'pending', {}, NOW()) RETURNING id;",
-                            id, conn->quote(address));
+        std::string insertOrderQuery = std::format("SELECT make_order({}, {}, '{}');", id, totalPrice, address);
         pqxx::result newOrderResult = tx.exec(insertOrderQuery);
         auto newOrderId = newOrderResult[0][0].as<uint32_t>();
 
+        // Steps 2-4
         for (auto &[productKey, productData]: cart) {
-            // Step 2: Add each product to the order_items table
-            std::string insertOrderItemQuery = std::format("INSERT INTO order_items (order_id, product_id, quantity, price, supplier_id) VALUES ({}, {}, {}, {}, {});", newOrderId,
-                                                           productKey, productData["amount"], productData["price"], productData["supplierId"]);
+            // Verify that each product is still available
+            std::string query = std::format("SELECT * FROM products WHERE id = {};", productKey);
+            pqxx::result R = tx.exec(query);
+
+            if (R.empty()) {
+                Utils::log(Utils::LogLevel::ERROR, *logFile, "Failed to make order, product not found in the database.");
+                return;
+            } else if (std::stoi(productData["amount"]) > R[0]["amount"].as<int32_t>()) {
+                Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to make order, not enough stock for product {}", productKey));
+                return;
+            }
+
+            // Step 2-3: Add each product to the order_items table, update the products table
+            std::string insertOrderItemQuery = std::format("SELECT add_order_item({}, {}, {}, {}, {});", newOrderId, productKey, productData["amount"], productData["price"], productData["supplierId"]);
+            Utils::log(Utils::LogLevel::ALERT, std::cout, insertOrderItemQuery);
             tx.exec(insertOrderItemQuery);
 
-            // Step 3: Update the products table
-            std::string updateProductQuery = std::format("UPDATE products SET quantity = quantity - {} WHERE id = {};", productData["amount"], productKey);
-            tx.exec(updateProductQuery);
-
-            // TODO Steps 4 and 5: Update balances (not shown here, requires additional logic)
+            // Step 4: Update the supplier's balance
+            int32_t productPrice = std::stoi(productData["price"]) * std::stoi(productData["amount"]);
+            std::string updateSupplierBalanceQuery = std::format("SELECT set_balance('supplier', {}, {});", productData["supplierId"], productPrice);
+            Utils::log(Utils::LogLevel::ALERT, std::cout, updateSupplierBalanceQuery);
+            tx.exec(updateSupplierBalanceQuery);
         }
 
-        // Step 6: Remove items from Redis cart (handled outside of this transaction)
+        // Step 5: update the customer's balance
+        setBalance(-static_cast<int32_t>(totalPrice));
+
+        // Step 6: Remove items from Redis cart and reset the total price
         clearCart();
 
         // Commit the transaction
         tx.commit();
+        Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Order made: {}", newOrderId));
     } catch (const pqxx::broken_connection &e) {
         throw; // Rethrow the exception to propagate it to the caller
     } catch (const sw::redis::Error &e) {

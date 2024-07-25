@@ -95,6 +95,14 @@ public:
      */
     [[maybe_unused]] [[nodiscard]] std::map<std::string, std::unordered_map<std::string, std::string>> getCart() const;
 
+    /**
+     * Get the total price of the products in the cart.
+     */
+    [[nodiscard]] uint32_t getCartTotalPrice() const;
+
+    /**
+     * Clear the cart.
+     */
     [[maybe_unused]] void clearCart();
 
     // Order related methods
