@@ -17,11 +17,12 @@ int main() {
 
     // Testing
     {
-        Customer customer("Gigio");
-        // customer.addProductToCart(8, 2);
+        // Customer customer("Gigio");
+        // Customer customer2("Melo");
+        // customer2.addProductToCart(8, 2);
         // customer.addProductToCart(6, 3);
         // customer.addProductToCart(5,1);
-        // customer.makeOrder("Piazza Albania 420");
+        // customer.makeOrder("Piazza Bibo 31");
         // customer.getCart();
         // customer.searchProduct("mele", std::nullopt, std::nullopt, std::nullopt, std::nullopt);
         // customer.setBalance(100);

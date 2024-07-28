@@ -30,17 +30,19 @@ void User::login() {
         auto conn = conn2Postgres("ecommerce", userType, userType);
 
         // Build the query to check if the user is already in the database
-        std::string query = std::format("SELECT id, balance, logged_in FROM {}s WHERE username = '{}';", userType, name);
+        std::string query = std::format("SELECT (check_user('{}', '{}')).*;", userType, name);
         pqxx::work tx(*conn);
-        pqxx::result R = tx.exec(query);
+        auto R = tx.query01<std::string, uint32_t, bool>(query);
         tx.commit();
 
-        if (!R.empty()) {
+        if (R) {
+            // Access individual fields directly from the tuple
+            auto [user_id, user_balance, logged_in] = R.value();
+
             // If the user is already in the database, fetch the id and balance, and set the logged_in field to true
-            // Otherwise, throw an exception as the user is already connected
-            if (!R[0][2].as<bool>()) {
-                id = R[0][0].as<std::string>();
-                balance = R[0][1].as<uint32_t>();
+            if (!logged_in) {
+                id = user_id;
+                balance = user_balance;
 
                 query = std::format("SELECT set_logged_in('{}', {}, true);", userType, id);
                 pqxx::work tx_login(*conn);
@@ -51,10 +53,10 @@ void User::login() {
             // Else, create a new entry in the database and fetch the id and balance, and set the logged_in field to true
             query = std::format("SELECT insert_user('{}', '{}');", userType, name);
             pqxx::work tx_new_user(*conn);
-            R = tx_new_user.exec(query);
+            auto new_user_id = tx_new_user.query_value<std::string>(query);
             tx_new_user.commit();
 
-            id = R[0][0].as<std::string>();
+            id = new_user_id;
             balance = 0;
         }
         Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("User `{}` logged in {{type: `{}`, id: {}, balance: {}}}", name, userType, id, balance));
@@ -80,12 +82,12 @@ void User::logout() {
         auto conn = conn2Postgres("ecommerce", userType, userType);
 
         // Build the query to check if the user's logged_in field is true
-        std::string query = std::format("SELECT logged_in FROM {}s WHERE id = {};", userType, id);
+        std::string query = std::format("SELECT (check_user('{}', '{}')).logged_in;", userType, name);
         pqxx::work tx(*conn);
-        pqxx::result R = tx.exec(query);
+        bool logged_in = tx.query_value<bool>(query);
         tx.commit();
 
-        if (R[0][0].as<bool>()) {
+        if (logged_in) {
             // If the user's logged_in field is true, set the logged_in field to false
             query = std::format("SELECT set_logged_in('{}', {}, false);", userType, id);
             pqxx::work tx_logout(*conn);
@@ -107,15 +109,15 @@ void User::getBalance() const {
         auto conn = conn2Postgres("ecommerce", userType, userType);
 
         // Build the query
-        std::string query = std::format("SELECT balance FROM {}s WHERE id = {};", userType, id);
+        std::string query = std::format("SELECT get_balance('{}', {});", userType, id);
 
         // Execute the query
         pqxx::work tx(*conn);
-        pqxx::result R = tx.exec(query);
+        auto bal = tx.query_value<uint32_t>(query);
         tx.commit();
 
         // Print the result
-        if (!R.empty()) Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Balance: {}", R[0][0].as<std::string>()));
+        Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Balance: {}", bal));
     } catch (const pqxx::broken_connection &e) {
         throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
@@ -134,13 +136,11 @@ void User::setBalance(const int32_t &balanceChange) {
 
         // Execute the query
         pqxx::work tx(*conn);
-        pqxx::result R = tx.exec(query);
+        auto newBal = tx.query_value<uint32_t >(query);
         tx.commit();
 
         // Print the result
-        if (!R.empty() && !R[0][0].is_null()) Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Balance modified to {}", R[0][0].as<std::string>()));
-        else Utils::log(Utils::LogLevel::TRACE, *logFile, "No balance modification performed");
-
+        Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Balance modified to {}", newBal));
     } catch (const pqxx::sql_error &e) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("SQL error: {}, Query: {}", e.what(), e.query()));
     } catch (const pqxx::broken_connection &e) {

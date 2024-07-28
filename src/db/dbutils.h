@@ -114,12 +114,6 @@ pqxx::result execCommand(std::unique_ptr<pqxx::connection> &conn, const std::str
 [[maybe_unused]] void printRows(const pqxx::result &R);
 
 /**
- * Pretty-print a row, aligning the columns
- * @param row the row to print
- */
-[[maybe_unused]] void printRow(const pqxx::row &row);
-
-/**
  * Initialize the ecommerce database
  * @return a pointer to the connection object
  */

@@ -27,10 +27,10 @@ void Customer::searchProduct(const std::optional<std::string> &name,
         std::string filters;
 
         // Filters
-        if (name.has_value()) filters += std::format("name LIKE '%{}%' AND ", name.value());
-        if (supplierUsername.has_value()) filters += std::format("supplier_username LIKE '%{}%' AND ", supplierUsername.value());
-        if (priceLowerBound.has_value()) filters += std::format("price >= {} AND", priceLowerBound.value());
-        if (priceUpperBound.has_value()) filters += std::format("price <= {} AND", priceUpperBound.value());
+        if (name) filters += std::format("name LIKE '%{}%' AND ", name.value());
+        if (supplierUsername) filters += std::format("supplier_username LIKE '%{}%' AND ", supplierUsername.value());
+        if (priceLowerBound) filters += std::format("price >= {} AND", priceLowerBound.value());
+        if (priceUpperBound) filters += std::format("price <= {} AND", priceUpperBound.value());
 
         // Remove the last " AND " if it exists
         if (!filters.empty() && filters.ends_with(" AND ")) filters = filters.substr(0, filters.length() - 5);
@@ -39,7 +39,7 @@ void Customer::searchProduct(const std::optional<std::string> &name,
         if (!filters.empty()) query += " WHERE " + filters;
 
         // Sort
-        if (orderBy.has_value()) {
+        if (orderBy) {
             query += " ORDER BY ";
             for (const auto &[columnName, sortDescending]: orderBy.value()) {
                 query += columnName;
@@ -75,10 +75,10 @@ void Customer::addProductToCart(const uint32_t &productId, const std::optional<u
      */
 
     // Validate amount
-    if (amount.has_value() && amount.value() <= 0) {
+    if (amount && amount.value() <= 0) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to add product to cart, invalid amount: {}", amount.value()));
         return;
-    } else if (!amount.has_value()) Utils::log(Utils::LogLevel::TRACE, *logFile, "Quantity not provided, defaulting to 1.");
+    } else if (!amount) Utils::log(Utils::LogLevel::TRACE, *logFile, "Quantity not provided, defaulting to 1.");
 
 
     try {
@@ -128,10 +128,10 @@ void Customer::removeProductFromCart(const uint32_t &productId, const std::optio
      */
 
     // Validate amount
-    if (amount.has_value() && amount.value() <= 0) {
+    if (amount && amount.value() <= 0) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to remove product from cart, invalid amount: {}", amount.value()));
         return;
-    } else if (!amount.has_value()) Utils::log(Utils::LogLevel::TRACE, *logFile, "Quantity not provided, defaulting to max.");
+    } else if (!amount) Utils::log(Utils::LogLevel::TRACE, *logFile, "Quantity not provided, defaulting to max.");
 
     try {
         // Connect to the redis server
@@ -143,10 +143,10 @@ void Customer::removeProductFromCart(const uint32_t &productId, const std::optio
         // Get the product's current amount to decide if and how much to remove
         std::optional<std::string> currentQuantity = conn->hget(productKey, "amount");
         std::optional<std::string> price = conn->hget(productKey, "price");
-        if (!currentQuantity.has_value()) {
+        if (!currentQuantity) {
             Utils::log(Utils::LogLevel::ERROR, *logFile, "Failed to remove product from cart, product not found in cart.");
             return;
-        } else if (amount.has_value() && std::stoi(currentQuantity.value()) < static_cast<int>(amount.value())) {
+        } else if (amount && std::stoi(currentQuantity.value()) < static_cast<int>(amount.value())) {
             Utils::log(Utils::LogLevel::ERROR, *logFile, "Failed to remove product from cart, not enough amount in cart.");
             return;
         }
@@ -155,7 +155,7 @@ void Customer::removeProductFromCart(const uint32_t &productId, const std::optio
         uint32_t productTotalPrice = std::stoi(price.value()) * amount.value_or(std::stoi(currentQuantity.value()));
 
         // Remove the product from the cart
-        if (amount.has_value() && std::stoi(currentQuantity.value()) > static_cast<int>(amount.value())) {
+        if (amount && std::stoi(currentQuantity.value()) > static_cast<int>(amount.value())) {
             conn->hincrby(productKey, "amount", -static_cast<int>(amount.value()));
         } else {
             conn->del(productKey);
@@ -223,7 +223,7 @@ uint32_t Customer::getCartTotalPrice() const {
         std::string totalPriceKey = std::format("cart:{}:total_price", id);
         std::optional<std::string> totalPrice = conn->get(totalPriceKey);
 
-        return totalPrice.has_value() ? std::stoi(totalPrice.value()) : 0;
+        return totalPrice ? std::stoi(totalPrice.value()) : 0;
     } catch (const sw::redis::Error &e) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to get total price of cart: {}", e.what()));
         return 0;
@@ -296,32 +296,26 @@ void Customer::makeOrder(const std::string &address) {
 
         // Step 1: Insert the new order and get the order ID
         std::string insertOrderQuery = std::format("SELECT make_order({}, {}, '{}');", id, totalPrice, address);
-        pqxx::result newOrderResult = tx.exec(insertOrderQuery);
-        auto newOrderId = newOrderResult[0][0].as<uint32_t>();
+        auto newOrderId = tx.query_value<uint32_t>(insertOrderQuery);
 
         // Steps 2-4
         for (auto &[productKey, productData]: cart) {
             // Verify that each product is still available
-            std::string query = std::format("SELECT * FROM products WHERE id = {};", productKey);
-            pqxx::result R = tx.exec(query);
+            std::string query = std::format("SELECT amount FROM products WHERE id = {};", productKey);
+            auto productAmount = tx.query_value<uint32_t>(query);
 
-            if (R.empty()) {
-                Utils::log(Utils::LogLevel::ERROR, *logFile, "Failed to make order, product not found in the database.");
-                return;
-            } else if (std::stoi(productData["amount"]) > R[0]["amount"].as<int32_t>()) {
+            if (std::stoul(productData["amount"]) > productAmount) {
                 Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to make order, not enough stock for product {}", productKey));
                 return;
             }
 
             // Step 2-3: Add each product to the order_items table, update the products table
             std::string insertOrderItemQuery = std::format("SELECT add_order_item({}, {}, {}, {}, {});", newOrderId, productKey, productData["amount"], productData["price"], productData["supplierId"]);
-            Utils::log(Utils::LogLevel::ALERT, std::cout, insertOrderItemQuery);
             tx.exec(insertOrderItemQuery);
 
             // Step 4: Update the supplier's balance
-            int32_t productPrice = std::stoi(productData["price"]) * std::stoi(productData["amount"]);
+            uint32_t productPrice = std::stoi(productData["price"]) * std::stoi(productData["amount"]);
             std::string updateSupplierBalanceQuery = std::format("SELECT set_balance('supplier', {}, {});", productData["supplierId"], productPrice);
-            Utils::log(Utils::LogLevel::ALERT, std::cout, updateSupplierBalanceQuery);
             tx.exec(updateSupplierBalanceQuery);
         }
 
@@ -333,7 +327,7 @@ void Customer::makeOrder(const std::string &address) {
 
         // Commit the transaction
         tx.commit();
-        Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Order made: {}", newOrderId));
+        Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Order made, tracking id: {}", newOrderId));
     } catch (const pqxx::broken_connection &e) {
         throw; // Rethrow the exception to propagate it to the caller
     } catch (const sw::redis::Error &e) {

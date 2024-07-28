@@ -12,6 +12,7 @@ std::string Transporter::toString() const {
     return oss.str();
 }
 
+// TODO: pass the printRows result into the Utils::log function so that it can be logged in the file as well
 void Transporter::getOrdersHistory() const {
     try {
         // Connect to `ecommerce` db as `transporter` user using conn2Postgres
@@ -42,8 +43,7 @@ void Transporter::getOngoingOrdersInfo() const {
         auto conn = conn2Postgres("ecommerce", "transporter", "transporter");
 
         // Check if the order exists
-        std::string query = std::format("SELECT o.id, c.username, o.address FROM orders o JOIN customers c ON o.customer_id = c.id WHERE o.transporter_id = {} AND o.status = 'shipped';", id);
-
+        std::string query = std::format("SELECT (get_ongoing_orders({})).*;", id);
         pqxx::work tx(*conn);
         pqxx::result R = tx.exec(query);
         tx.commit();

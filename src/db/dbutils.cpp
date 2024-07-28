@@ -241,41 +241,7 @@ void printRows(const pqxx::result &R) {
     Utils::log(Utils::LogLevel::TRACE, std::cout, oss.str());
 }
 
-void printRow(const pqxx::row &row) {
-    std::vector<std::string> columnNames;
-    std::vector<std::string> values;
-    std::vector<size_t> maxLengths(row.size(), 0);
-
-    // Store column names, values and find maximum length of content in each column
-    for (const auto &field: row) {
-        std::string columnName = field.name();
-        auto value = field.as<std::string>();
-        maxLengths[columnNames.size()] = std::max({maxLengths[columnNames.size()], columnName.size(), value.size()});
-        columnNames.push_back(std::move(columnName));
-        values.push_back(std::move(value));
-    }
-
-    // Calculate total width
-    size_t totalWidth = std::accumulate(maxLengths.begin(), maxLengths.end(), maxLengths.size() * 3) - 1; // -1 to align the last column with the +
-
-    // Insert top border, rows and bottom border
-    std::ostringstream oss;
-    oss << "\n+" << std::string(totalWidth, '-') << "+\n";
-    for (size_t i = 0; i < columnNames.size(); ++i) {
-        oss << "| " << std::setw(maxLengths[i]) << std::left << columnNames[i] << " ";
-    }
-    oss << "|\n";
-    oss << "+" << std::string(totalWidth, '-') << "+\n";
-    for (size_t i = 0; i < values.size(); ++i) {
-        oss << "| " << std::setw(maxLengths[i]) << std::left << values[i] << " ";
-    }
-    oss << "|\n";
-    oss << "+" << std::string(totalWidth, '-') << "+";
-
-    Utils::log(Utils::LogLevel::TRACE, std::cout, oss.str());
-}
-
-// Sezione porcherie
+// Init functions, required to set up the database
 
 std::unique_ptr<pqxx::connection> initDatabase() {
     // Connect to the default 'postgres' database as the 'postgres' user
@@ -359,16 +325,11 @@ void initTables(std::unique_ptr<pqxx::connection> &conn) {
             FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
     )"); ///< Products listed in an order
 
-    // Grant permissions // TODO: set all perms accordingly
+    // Grant permissions
     // TODO: all grants should be reverted, and instead use procedures to access the data
-    execCommand(conn, "GRANT SELECT ON customers TO customer, transporter");
-    execCommand(conn, "GRANT SELECT ON suppliers TO supplier");
-    execCommand(conn, "GRANT SELECT ON transporters TO customer, transporter");
-    // execCommand(conn, "GRANT SELECT ON suppliers TO customer, supplier, transporter");
-    // execCommand(conn, "GRANT SELECT ON transporters TO customer, supplier, transporter");
     execCommand(conn, "GRANT SELECT ON products TO customer, supplier");
     execCommand(conn, "GRANT SELECT ON orders TO customer, supplier, transporter");
-    execCommand(conn, "GRANT SELECT ON order_items TO customer, supplier, transporter");
+    execCommand(conn, "GRANT SELECT ON order_items TO supplier, transporter");
 }
 
 void initFunctions(std::unique_ptr<pqxx::connection> &conn) {
@@ -390,6 +351,12 @@ void initFunctions(std::unique_ptr<pqxx::connection> &conn) {
 
         RETURN target_table;
     END;)"); ///< Determine the target table based on user type
+    createFunction(conn, "check_user", {{ "user_type", "user_role" }, { "username", "VARCHAR" }}, "TABLE(id INT, balance INT, logged_in BOOL)", R"(
+    BEGIN
+        -- Check if the user exists
+        RETURN QUERY EXECUTE format('SELECT id, balance, logged_in FROM %I WHERE username = $1', get_target_table(user_type))
+        USING username;
+    END;)"); ///< Check if the user exists
     createFunction(conn, "insert_user", {{"user_type", "user_role"}, {"username", "VARCHAR"}}, "INT", R"(
     DECLARE
         new_id INT;
@@ -407,6 +374,17 @@ void initFunctions(std::unique_ptr<pqxx::connection> &conn) {
         EXECUTE format('UPDATE %I SET logged_in = $1 WHERE id = $2', get_target_table(user_type))
         USING is_logged_in, user_id;
     END;)"); ///< Update the logged_in field in the appropriate table
+    createFunction(conn, "get_balance", {{"user_type", "user_role"}, {"user_id", "INT"}}, "INT", R"(
+    DECLARE
+        balance INT;
+    BEGIN
+        -- Retrieve the balance from the appropriate table
+        EXECUTE format('SELECT balance FROM %I WHERE id = $2', get_target_table(user_type))
+        INTO balance
+        USING user_id;
+
+        RETURN balance;
+    END;)"); ///< Retrieve the balance from the appropriate table
     createFunction(conn, "set_balance", {{"user_type", "user_role"}, {"user_id", "INT"}, {"amount", "INT"}}, "INT", R"(
     DECLARE
         new_balance INT;
@@ -418,7 +396,11 @@ void initFunctions(std::unique_ptr<pqxx::connection> &conn) {
         ELSIF amount < 0 THEN
             operation := '-';
         ELSE
-            RETURN NULL;
+            -- If amount is zero, return the current balance
+            EXECUTE format('SELECT balance FROM %I WHERE id = $2', get_target_table(user_type))
+            INTO new_balance
+            USING user_id;
+            RETURN new_balance;
         END IF;
 
         -- Calculate the new balance
@@ -482,9 +464,9 @@ void initFunctions(std::unique_ptr<pqxx::connection> &conn) {
         -- Check if the product exists
         SELECT id INTO removed_id FROM products WHERE id = $1;
 
-        -- If the product does not exist, return -1
+        -- If the product does not exist, return 0
         IF removed_id IS NULL THEN
-            RETURN -1;
+            RETURN 0;
         END IF;
 
         -- Remove the product from the products table and return its id
@@ -502,9 +484,9 @@ void initFunctions(std::unique_ptr<pqxx::connection> &conn) {
         -- Check if the product exists
         SELECT id INTO edited_id FROM products WHERE id = $1;
 
-        -- If the product does not exist, return -1
+        -- If the product does not exist, return 0
         IF edited_id IS NULL THEN
-            RETURN -1;
+            RETURN 0;
         END IF;
 
         -- Update the product in the products table and return its id
@@ -520,6 +502,14 @@ void initFunctions(std::unique_ptr<pqxx::connection> &conn) {
     END;)"); ///< Edit a product from the supplier's catalog
 
     // Transporters
+    createFunction(conn, "get_ongoing_orders", {{ "transporter_id", "INT" }}, "TABLE(order_id INT, customer_username VARCHAR(255), address VARCHAR(255))", R"(
+    BEGIN
+        -- Retrieve the ongoing orders
+        RETURN QUERY SELECT o.id, c.username, o.address
+        FROM orders o
+        JOIN customers c ON o.customer_id = c.id
+        WHERE o.transporter_id = $1 AND o.status = 'shipped';
+    END;)"); ///< Get the ongoing orders
     createFunction(conn, "set_order_status", {{"transporter_id", "INT"}, {"order_id", "INT"}, {"new_status", "order_status"}}, "VOID", R"(
     DECLARE
         current_status order_status;
@@ -541,8 +531,10 @@ void initFunctions(std::unique_ptr<pqxx::connection> &conn) {
     )"); ///< Set the status of an order
 
     // Grant the EXECUTE permission to the respective users
+    execCommand(conn, "GRANT EXECUTE ON FUNCTION check_user(user_role, VARCHAR) TO customer, supplier, transporter;");
     execCommand(conn, "GRANT EXECUTE ON FUNCTION insert_user(user_role, VARCHAR) TO customer, supplier, transporter;");
     execCommand(conn, "GRANT EXECUTE ON FUNCTION set_logged_in(user_role, INT, BOOL) TO customer, supplier, transporter;");
+    execCommand(conn, "GRANT EXECUTE ON FUNCTION get_balance(user_role, INT) TO customer, supplier, transporter;");
     execCommand(conn, "GRANT EXECUTE ON FUNCTION set_balance(user_role, INT, INT) TO customer, supplier, transporter;");
 
     execCommand(conn, "GRANT EXECUTE ON FUNCTION make_order(INT, INT, VARCHAR(255)) TO customer;");
@@ -552,5 +544,6 @@ void initFunctions(std::unique_ptr<pqxx::connection> &conn) {
     execCommand(conn, "GRANT EXECUTE ON FUNCTION remove_product(INT) TO supplier;");
     execCommand(conn, "GRANT EXECUTE ON FUNCTION edit_product(INT, VARCHAR(255), INT, INT, VARCHAR(255)) TO supplier;");
 
+    execCommand(conn, "GRANT EXECUTE ON FUNCTION get_ongoing_orders(INT) TO transporter;");
     execCommand(conn, "GRANT EXECUTE ON FUNCTION set_order_status(INT, INT, order_status) TO transporter;");
 }

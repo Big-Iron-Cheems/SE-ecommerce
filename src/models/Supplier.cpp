@@ -25,9 +25,9 @@ void Supplier::getProducts(const std::optional<std::string> &name,
         std::string filters;
 
         // Filters
-        if (name.has_value()) filters += std::format("name LIKE '%{}%' AND ", name.value());
-        if (priceLowerBound.has_value()) filters += std::format("price >= {} AND ", priceLowerBound.value());
-        if (priceUpperBound.has_value()) filters += std::format("price <= {} AND ", priceUpperBound.value());
+        if (name) filters += std::format("name LIKE '%{}%' AND ", name.value());
+        if (priceLowerBound) filters += std::format("price >= {} AND ", priceLowerBound.value());
+        if (priceUpperBound) filters += std::format("price <= {} AND ", priceUpperBound.value());
 
         // Remove the last " AND " if it exists
         if (!filters.empty() && filters.ends_with(" AND ")) filters = filters.substr(0, filters.length() - 5);
@@ -36,7 +36,7 @@ void Supplier::getProducts(const std::optional<std::string> &name,
         if (!filters.empty()) query += " AND " + filters;
 
         // Sort
-        if (orderBy.has_value()) {
+        if (orderBy) {
             query += " ORDER BY ";
             for (const auto &[columnName, sortDescending]: orderBy.value()) {
                 query += columnName;
@@ -72,10 +72,10 @@ void Supplier::addProduct(const std::string &name, const uint32_t &price, const 
 
         // Execute query
         pqxx::work tx(*conn);
-        pqxx::result R = tx.exec(query);
+        auto newProductId = tx.query_value<uint32_t>(query);
         tx.commit();
 
-        Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Product added successfully: {}", R[0][0].as<std::string>()));
+        Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Product added successfully: {}", newProductId));
     } catch (const pqxx::broken_connection &e) {
         throw;
     } catch (const std::exception &e) {
@@ -93,12 +93,12 @@ void Supplier::removeProduct(const uint32_t &productId) {
 
         // Execute query
         pqxx::work tx(*conn);
-        pqxx::result R = tx.exec(query);
+        auto removedProductId = tx.query_value<uint32_t>(query);
         tx.commit();
 
-        // if R is -1 then the product was not removed, log accordingly
-        if (R[0][0].as<int>() == -1) Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to remove a product: product with id {} does not exist", productId));
-        else Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Product removed successfully: {}", R[0][0].as<std::string>()));
+        // if removedProductId is 0 then the product was not removed, log accordingly
+        if (!removedProductId) Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to remove a product: product with id {} does not exist", productId));
+        else Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Product removed successfully: {}", removedProductId));
     } catch (const pqxx::broken_connection &e) {
         throw;
     } catch (const std::exception &e) {
@@ -117,19 +117,19 @@ void Supplier::editProduct(const uint32_t &productId,
 
         // Build the query to call the stored procedure
         std::string query = std::format("SELECT edit_product({}, {}, {}, {}, {});", productId,
-                                        name.has_value() ? std::format("'{}'", name.value()) : "NULL",
-                                        price.has_value() ? std::format("{}", price.value()) : "NULL",
-                                        amount.has_value() ? std::format("{}", amount.value()) : "NULL",
-                                        description.has_value() ? std::format("'{}'", description.value()) : "NULL");
+                                        name ? std::format("'{}'", name.value()) : "NULL",
+                                        price ? std::format("{}", price.value()) : "NULL",
+                                        amount ? std::format("{}", amount.value()) : "NULL",
+                                        description ? std::format("'{}'", description.value()) : "NULL");
 
         // Execute query
         pqxx::work tx(*conn);
-        pqxx::result R = tx.exec(query);
+        auto editedProductId = tx.query_value<uint32_t>(query);
         tx.commit();
 
-        // if R is -1 then the product was not edited, log accordingly
-        if (R[0][0].as<int>() == -1) Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to edit a product: product with id {} does not exist", productId));
-        else Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Product edited successfully: {}", R[0][0].as<std::string>()));
+        // if editedProductId is 0 then the product was not edited, log accordingly
+        if (!editedProductId) Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to edit a product: product with id {} does not exist", productId));
+        else Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Product edited successfully: {}", editedProductId));
     } catch (const pqxx::broken_connection &e) {
         throw;
     } catch (const std::exception &e) {
