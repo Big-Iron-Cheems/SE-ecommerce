@@ -163,7 +163,7 @@ void createFunction(std::unique_ptr<pqxx::connection> &conn,
     }
 
     // Build the query
-    std::string query = std::format("CREATE OR REPLACE FUNCTION {}(", functionName);;
+    std::string query = std::format("CREATE OR REPLACE FUNCTION {}(", functionName);
     for (size_t i = 0; i < args.size(); ++i) {
         query += std::format("{} {}", args[i].first, args[i].second);
         if (i < args.size() - 1) query += ", ";
@@ -351,7 +351,7 @@ void initFunctions(std::unique_ptr<pqxx::connection> &conn) {
 
         RETURN target_table;
     END;)"); ///< Determine the target table based on user type
-    createFunction(conn, "check_user", {{ "user_type", "user_role" }, { "username", "VARCHAR" }}, "TABLE(id INT, balance INT, logged_in BOOL)", R"(
+    createFunction(conn, "check_user", {{"user_type", "user_role"}, {"username", "VARCHAR"}}, "TABLE(id INT, balance INT, logged_in BOOL)", R"(
     BEGIN
         -- Check if the user exists
         RETURN QUERY EXECUTE format('SELECT id, balance, logged_in FROM %I WHERE username = $1', get_target_table(user_type))
@@ -422,7 +422,7 @@ void initFunctions(std::unique_ptr<pqxx::connection> &conn) {
     END;)"); ///< Update the balance in the appropriate table and retrieve the new balance
 
     // Customers
-    createFunction(conn, "make_order", {{ "customer_id", "INT" }, { "total_price", "INT" }, { "address", "VARCHAR(255)" }}, "INT", R"(
+    createFunction(conn, "make_order", {{"customer_id", "INT"}, {"total_price", "INT"}, {"address", "VARCHAR(255)"}}, "INT", R"(
     DECLARE
         new_order_id INT;
     BEGIN
@@ -433,7 +433,7 @@ void initFunctions(std::unique_ptr<pqxx::connection> &conn) {
 
         RETURN new_order_id;
     END;)"); ///< Make an order from the products in the cart
-    createFunction(conn, "add_order_item", {{ "order_id", "INT" }, { "product_id", "INT" }, { "quantity", "INT" }, { "price", "INT" }, { "supplier_id", "INT" }}, "VOID", R"(
+    createFunction(conn, "add_order_item", {{"order_id", "INT"}, {"product_id", "INT"}, {"quantity", "INT"}, {"price", "INT"}, {"supplier_id", "INT"}}, "VOID", R"(
     BEGIN
         -- Insert a new product into the order_items table
         INSERT INTO order_items (order_id, product_id, quantity, price, supplier_id)
@@ -502,7 +502,7 @@ void initFunctions(std::unique_ptr<pqxx::connection> &conn) {
     END;)"); ///< Edit a product from the supplier's catalog
 
     // Transporters
-    createFunction(conn, "get_ongoing_orders", {{ "transporter_id", "INT" }}, "TABLE(order_id INT, customer_username VARCHAR(255), address VARCHAR(255))", R"(
+    createFunction(conn, "get_ongoing_orders", {{"transporter_id", "INT"}}, "TABLE(order_id INT, customer_username VARCHAR(255), address VARCHAR(255))", R"(
     BEGIN
         -- Retrieve the ongoing orders
         RETURN QUERY SELECT o.id, c.username, o.address
@@ -527,8 +527,7 @@ void initFunctions(std::unique_ptr<pqxx::connection> &conn) {
 
         -- Update the order status
         UPDATE orders SET status = new_status WHERE id = order_id;
-    END;
-    )"); ///< Set the status of an order
+    END;)"); ///< Set the status of an order
 
     // Grant the EXECUTE permission to the respective users
     execCommand(conn, "GRANT EXECUTE ON FUNCTION check_user(user_role, VARCHAR) TO customer, supplier, transporter;");

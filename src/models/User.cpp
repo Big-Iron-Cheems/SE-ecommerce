@@ -136,7 +136,7 @@ void User::setBalance(const int32_t &balanceChange) {
 
         // Execute the query
         pqxx::work tx(*conn);
-        auto newBal = tx.query_value<uint32_t >(query);
+        auto newBal = tx.query_value<uint32_t>(query);
         tx.commit();
 
         // Print the result

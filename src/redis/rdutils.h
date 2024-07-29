@@ -7,4 +7,4 @@
  * Connect to Redis
  * @return a pointer to the Redis connection object
  */
-std::shared_ptr<sw::redis::Redis> conn2Redis();
+std::unique_ptr<sw::redis::Redis> conn2Redis();

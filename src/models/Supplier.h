@@ -39,9 +39,9 @@ public:
      * Retrive all products sold by the supplier.
      */
     [[maybe_unused]] void getProducts(const std::optional<std::string> &name,
-                     const std::optional<uint32_t> &priceLowerBound,
-                     const std::optional<uint32_t> &priceUpperBound,
-                     const std::optional<std::vector<std::pair<std::string, bool>>> &orderBy) const;
+                                      const std::optional<uint32_t> &priceLowerBound,
+                                      const std::optional<uint32_t> &priceUpperBound,
+                                      const std::optional<std::vector<std::pair<std::string, bool>>> &orderBy) const;
 
     /**
      * Add a product to the supplier's catalog.
@@ -67,10 +67,10 @@ public:
      * @param description the new description of the product.
      */
     [[maybe_unused]] void editProduct(const uint32_t &productId,
-                     const std::optional<std::string> &name,
-                     const std::optional<uint32_t> &price,
-                     const std::optional<uint32_t> &amount,
-                     const std::optional<std::string> &description);
+                                      const std::optional<std::string> &name,
+                                      const std::optional<uint32_t> &price,
+                                      const std::optional<uint32_t> &amount,
+                                      const std::optional<std::string> &description);
 
     // Order related methods
 
