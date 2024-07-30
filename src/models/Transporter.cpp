@@ -30,8 +30,6 @@ void Transporter::getOrdersHistory() const {
             return;
         }
         printRows(R);
-    } catch (const pqxx::broken_connection &e) {
-        throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to fetch order history: {}", e.what()));
     }
@@ -53,8 +51,6 @@ void Transporter::getOngoingOrdersInfo() const {
             return;
         }
         printRows(R);
-    } catch (const pqxx::broken_connection &e) {
-        throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to fetch ongoing orders: {}", e.what()));
     }
@@ -73,8 +69,6 @@ void Transporter::setOrderStatus(const uint32_t &orderId, Order::Status orderSta
         tx.commit();
 
         Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Order {} status updated to {}.", orderId, Order::orderStatusToString(orderStatus)));
-    } catch (const pqxx::broken_connection &e) {
-        throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to update order status: {}", e.what()));
     }

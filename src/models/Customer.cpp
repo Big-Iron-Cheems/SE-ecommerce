@@ -58,8 +58,6 @@ void Customer::searchProduct(const std::optional<std::string> &name,
 
         // Print results
         printRows(R);
-    } catch (const pqxx::broken_connection &e) {
-        throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to search products: {}", e.what()));
     }
@@ -107,8 +105,6 @@ void Customer::addProductToCart(const uint32_t &productId, const std::optional<u
         rdConn->incrby(totalPriceKey, productTotalPrice);
 
         Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Added {}x `{}` to the cart. Total price updated by {}", amount.value_or(1), name, productTotalPrice));
-    } catch (const pqxx::broken_connection &e) {
-        throw; // Rethrow the exception to propagate it to the caller
     } catch (const sw::redis::Error &e) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to add product to cart: {}", e.what()));
     } catch (const std::exception &e) {
@@ -328,8 +324,6 @@ void Customer::makeOrder(const std::string &address) {
         // Commit the transaction
         tx.commit();
         Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Order made, tracking id: {}", newOrderId));
-    } catch (const pqxx::broken_connection &e) {
-        throw; // Rethrow the exception to propagate it to the caller
     } catch (const sw::redis::Error &e) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to make order: {}", e.what()));
     }
@@ -363,8 +357,6 @@ void Customer::cancelOrder(const uint32_t &orderId) {
         tx.commit();
 
         Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Order cancelled: {}", orderId));
-    } catch (const pqxx::broken_connection &e) {
-        throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to cancel order: {}", e.what()));
     }
@@ -396,8 +388,6 @@ void Customer::getOrderStatus(const uint32_t &orderId) const {
         }
 
         Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Order {} status: {}", orderId, R[0]["status"].c_str()));
-    } catch (const pqxx::broken_connection &e) {
-        throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to fetch order status: {}", e.what()));
     }
@@ -425,8 +415,6 @@ void Customer::getOrdersHistory() const {
             return;
         }
         printRows(R);
-    } catch (const pqxx::broken_connection &e) {
-        throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to fetch order history: {}", e.what()));
     }

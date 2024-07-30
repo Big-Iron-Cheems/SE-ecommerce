@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../Utils.h"
+#include "PostgresConnectionPool.h"
 #include <pqxx/pqxx>
 #include <vector>
 
@@ -11,7 +12,7 @@
  * @param password the password to use
  * @return a pointer to the connection object
  */
-std::unique_ptr<pqxx::connection> conn2Postgres(const std::string &dbname, const std::string &user, const std::string &password);
+std::shared_ptr<pqxx::connection> conn2Postgres(const std::string &dbname, const std::string &user, const std::string &password);
 
 /**
  * Check if a database exists in PostgreSQL
@@ -19,14 +20,14 @@ std::unique_ptr<pqxx::connection> conn2Postgres(const std::string &dbname, const
  * @param databaseName the name of the database to check
  * @return true if the database exists, false otherwise
  */
-bool doesDatabaseExist(std::unique_ptr<pqxx::connection> &conn, const std::string &databaseName);
+bool doesDatabaseExist(std::shared_ptr<pqxx::connection> &conn, const std::string &databaseName);
 
 /**
  * Create a new database in PostgreSQL
  * @param conn a pointer to the connection object
  * @param databaseName the name of the database to create
  */
-void createDatabase(std::unique_ptr<pqxx::connection> &conn, const std::string &databaseName);
+void createDatabase(std::shared_ptr<pqxx::connection> &conn, const std::string &databaseName);
 
 /**
  * Check if a user exists in PostgreSQL
@@ -34,7 +35,7 @@ void createDatabase(std::unique_ptr<pqxx::connection> &conn, const std::string &
  * @param username the username to check
  * @return true if the user exists, false otherwise
  */
-bool doesUserExist(std::unique_ptr<pqxx::connection> &conn, const std::string &username);
+bool doesUserExist(std::shared_ptr<pqxx::connection> &conn, const std::string &username);
 
 /**
  * Create a new user in PostgreSQL
@@ -42,7 +43,7 @@ bool doesUserExist(std::unique_ptr<pqxx::connection> &conn, const std::string &u
  * @param username the username to create
  * @param password the password to use
  */
-void createUser(std::unique_ptr<pqxx::connection> &conn, const std::string &username, const std::string &password, const std::string &options);
+void createUser(std::shared_ptr<pqxx::connection> &conn, const std::string &username, const std::string &password, const std::string &options);
 
 /**
  * Check if a type exists in PostgreSQL
@@ -50,7 +51,7 @@ void createUser(std::unique_ptr<pqxx::connection> &conn, const std::string &user
  * @param typeName the name of the type to check
  * @return true if the type exists, false otherwise
  */
-bool doesTypeExist(std::unique_ptr<pqxx::connection> &conn, const std::string &typeName);
+bool doesTypeExist(std::shared_ptr<pqxx::connection> &conn, const std::string &typeName);
 
 /**
  * Create a new type in PostgreSQL
@@ -58,7 +59,7 @@ bool doesTypeExist(std::unique_ptr<pqxx::connection> &conn, const std::string &t
  * @param typeName the name of the type to create
  * @param definition the definition of the type
  */
-void createType(std::unique_ptr<pqxx::connection> &conn, const std::string &typeName, const std::string &definition);
+void createType(std::shared_ptr<pqxx::connection> &conn, const std::string &typeName, const std::string &definition);
 
 /**
  * Check if a table exists in PostgreSQL
@@ -66,7 +67,7 @@ void createType(std::unique_ptr<pqxx::connection> &conn, const std::string &type
  * @param tableName the name of the table to check
  * @return true if the table exists, false otherwise
  */
-bool doesTableExist(std::unique_ptr<pqxx::connection> &conn, const std::string &tableName);
+bool doesTableExist(std::shared_ptr<pqxx::connection> &conn, const std::string &tableName);
 
 /**
  * Create a new table in PostgreSQL with the given columns
@@ -74,7 +75,7 @@ bool doesTableExist(std::unique_ptr<pqxx::connection> &conn, const std::string &
  * @param tableName the name of the table to create
  * @param columns the columns to use
  */
-void createTable(std::unique_ptr<pqxx::connection> &conn, const std::string &tableName, const std::string &columns);
+void createTable(std::shared_ptr<pqxx::connection> &conn, const std::string &tableName, const std::string &columns);
 
 /**
  * Check if a function exists in PostgreSQL
@@ -83,7 +84,7 @@ void createTable(std::unique_ptr<pqxx::connection> &conn, const std::string &tab
  * @param argTypes the types of the arguments of the function
  * @return true if the function exists, false otherwise
  */
-bool doesFunctionExist(std::unique_ptr<pqxx::connection> &conn, const std::string &functionName, const std::vector<std::string> &argTypes);
+bool doesFunctionExist(std::shared_ptr<pqxx::connection> &conn, const std::string &functionName, const std::vector<std::string> &argTypes);
 
 /**
  * Create a new function in PostgreSQL
@@ -93,7 +94,7 @@ bool doesFunctionExist(std::unique_ptr<pqxx::connection> &conn, const std::strin
  * @param returnType the return type of the function
  * @param body the body of the function
  */
-void createFunction(std::unique_ptr<pqxx::connection> &conn,
+void createFunction(std::shared_ptr<pqxx::connection> &conn,
                     const std::string &functionName,
                     const std::vector<std::pair<std::string, std::string>> &args,
                     const std::string &returnType,
@@ -105,7 +106,7 @@ void createFunction(std::unique_ptr<pqxx::connection> &conn,
  * @param command the command to execute
  * @return the result of the command or nullptr if an error occurred
  */
-pqxx::result execCommand(std::unique_ptr<pqxx::connection> &conn, const std::string &command);
+pqxx::result execCommand(std::shared_ptr<pqxx::connection> &conn, const std::string &command);
 
 /**
  * Pretty-print the rows of a result, aligning the columns
@@ -116,23 +117,24 @@ pqxx::result execCommand(std::unique_ptr<pqxx::connection> &conn, const std::str
 /**
  * Initialize the ecommerce database
  * @return a pointer to the connection object
+ * @throws std::runtime_error if the database connection fails
  */
-std::unique_ptr<pqxx::connection> initDatabase();
+void initDatabase();
 
 /**
  * Initialize the types in PostgreSQL
  * @param conn a pointer to the connection object
  */
-void initTypes(std::unique_ptr<pqxx::connection> &conn);
+void initTypes(std::shared_ptr<pqxx::connection> &conn);
 
 /**
  * Initialize the tables in PostgreSQL
  * @param conn a pointer to the connection object
  */
-void initTables(std::unique_ptr<pqxx::connection> &conn);
+void initTables(std::shared_ptr<pqxx::connection> &conn);
 
 /**
  * Initialize the functions in PostgreSQL
  * @param conn a pointer to the connection object
  */
-void initFunctions(std::unique_ptr<pqxx::connection> &conn);
+void initFunctions(std::shared_ptr<pqxx::connection> &conn);

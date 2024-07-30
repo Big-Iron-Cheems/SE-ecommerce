@@ -60,8 +60,6 @@ void User::login() {
             balance = 0;
         }
         Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("User `{}` logged in {{type: `{}`, id: {}, balance: {}}}", name, userType, id, balance));
-    } catch (const pqxx::broken_connection &e) {
-        throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
         throw; // Rethrow the exception to propagate it to the caller
     }
@@ -95,8 +93,6 @@ void User::logout() {
             tx_logout.commit();
             Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("User `{}` logged out", name));
         } else throw std::invalid_argument("User is not logged in");
-    } catch (const pqxx::broken_connection &e) {
-        throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("An error occurred: {}", e.what()));
     }
@@ -118,8 +114,6 @@ void User::getBalance() const {
 
         // Print the result
         Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Balance: {}", bal));
-    } catch (const pqxx::broken_connection &e) {
-        throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("An error occurred: {}", e.what()));
     }
@@ -141,10 +135,6 @@ void User::setBalance(const int32_t &balanceChange) {
 
         // Print the result
         Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Balance modified to {}", newBal));
-    } catch (const pqxx::sql_error &e) {
-        Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("SQL error: {}, Query: {}", e.what(), e.query()));
-    } catch (const pqxx::broken_connection &e) {
-        throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to set balance: {}", e.what()));
     }

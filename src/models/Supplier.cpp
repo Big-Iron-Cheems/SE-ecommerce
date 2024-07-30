@@ -55,8 +55,6 @@ void Supplier::getProducts(const std::optional<std::string> &name,
 
         // Print results
         printRows(R);
-    } catch (const pqxx::broken_connection &e) {
-        throw;
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to search products: {}", e.what()));
     }
@@ -76,8 +74,6 @@ void Supplier::addProduct(const std::string &name, const uint32_t &price, const 
         tx.commit();
 
         Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Product added successfully: {}", newProductId));
-    } catch (const pqxx::broken_connection &e) {
-        throw;
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to add a product: {}", e.what()));
     }
@@ -99,8 +95,6 @@ void Supplier::removeProduct(const uint32_t &productId) {
         // if removedProductId is 0 then the product was not removed, log accordingly
         if (!removedProductId) Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to remove a product: product with id {} does not exist", productId));
         else Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Product removed successfully: {}", removedProductId));
-    } catch (const pqxx::broken_connection &e) {
-        throw;
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to remove a product: {}", e.what()));
     }
@@ -130,8 +124,6 @@ void Supplier::editProduct(const uint32_t &productId,
         // if editedProductId is 0 then the product was not edited, log accordingly
         if (!editedProductId) Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to edit a product: product with id {} does not exist", productId));
         else Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Product edited successfully: {}", editedProductId));
-    } catch (const pqxx::broken_connection &e) {
-        throw;
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to edit a product: {}", e.what()));
     }
@@ -154,8 +146,6 @@ void Supplier::getOrdersHistory() const {
             return;
         }
         printRows(R);
-    } catch (const pqxx::broken_connection &e) {
-        throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to fetch order history: {}", e.what()));
     }
@@ -179,8 +169,6 @@ void Supplier::getOrderStatus(const uint32_t &orderId) const {
         }
 
         Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Order {} status: {}", orderId, R[0]["status"].c_str()));
-    } catch (const pqxx::broken_connection &e) {
-        throw; // Rethrow the exception to propagate it to the caller
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to fetch order status: {}", e.what()));
     }

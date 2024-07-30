@@ -1,19 +1,12 @@
-#include "main.h"
+#include "db/dbutils.h"
 #include "models/Customer.h"
 #include "models/Supplier.h"
 #include "models/Transporter.h"
 
 int main() {
-    // Connect to PostgreSQL
-    auto pgConn = initDatabase();
-    if (!pgConn) return EXIT_FAILURE;
-
-    // Connect to Redis
-    auto rdConn = conn2Redis();
-    if (!rdConn) return EXIT_FAILURE;
-
-    // Program logic...
-    Utils::log(Utils::LogLevel::TRACE, std::cout, "Postgres and Redis are running.");
+    // Initialize the database
+    initDatabase();
+    Utils::log(Utils::LogLevel::TRACE, std::cout, "Ready to work...");
 
     // Testing
     {
@@ -76,7 +69,6 @@ int main() {
     }
 
     // Terminating the program
-    Utils::log(Utils::LogLevel::TRACE, std::cout, "Closing connections...");
-
+    Utils::log(Utils::LogLevel::TRACE, std::cout, "Exiting program...");
     return EXIT_SUCCESS;
 }

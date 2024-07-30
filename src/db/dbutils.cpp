@@ -12,19 +12,11 @@
  * DROP USER ecommerce;
  */
 
-std::unique_ptr<pqxx::connection> conn2Postgres(const std::string &dbname, const std::string &user, const std::string &password) {
-    std::string connInfo = std::format("dbname={} user={} password={}", dbname, user, password);
-    try {
-        auto conn = std::make_unique<pqxx::connection>(connInfo);
-        Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("Connected to Postgres database '{}' as user '{}'.", dbname, user));
-        return conn;
-    } catch (const pqxx::broken_connection &e) {
-        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to connect to Postgres database '{}' as user '{}': {}", dbname, user, e.what()));
-        throw; // Rethrow the exception to propagate it to the caller
-    }
+std::shared_ptr<pqxx::connection> conn2Postgres(const std::string &dbname, const std::string &user, const std::string &password) {
+    return PostgresConnectionPool::getInstance().getConnection(dbname, user, password);
 }
 
-bool doesDatabaseExist(std::unique_ptr<pqxx::connection> &conn, const std::string &databaseName) {
+bool doesDatabaseExist(std::shared_ptr<pqxx::connection> &conn, const std::string &databaseName) {
     std::string query = std::format("SELECT 1 FROM pg_database WHERE datname = '{}'", databaseName);
     try {
         pqxx::work tx(*conn);
@@ -37,7 +29,7 @@ bool doesDatabaseExist(std::unique_ptr<pqxx::connection> &conn, const std::strin
     }
 }
 
-void createDatabase(std::unique_ptr<pqxx::connection> &conn, const std::string &databaseName) {
+void createDatabase(std::shared_ptr<pqxx::connection> &conn, const std::string &databaseName) {
     if (doesDatabaseExist(conn, databaseName)) Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("Database `{}` already exists.", databaseName));
     else {
         pqxx::result R = execCommand(conn, std::format("CREATE DATABASE {}", databaseName));
@@ -46,7 +38,7 @@ void createDatabase(std::unique_ptr<pqxx::connection> &conn, const std::string &
     }
 }
 
-bool doesUserExist(std::unique_ptr<pqxx::connection> &conn, const std::string &username) {
+bool doesUserExist(std::shared_ptr<pqxx::connection> &conn, const std::string &username) {
     std::string query = std::format("SELECT 1 FROM pg_user WHERE usename = '{}'", username);
     try {
         pqxx::work tx(*conn);
@@ -59,7 +51,7 @@ bool doesUserExist(std::unique_ptr<pqxx::connection> &conn, const std::string &u
     }
 }
 
-void createUser(std::unique_ptr<pqxx::connection> &conn, const std::string &username, const std::string &password, const std::string &options) {
+void createUser(std::shared_ptr<pqxx::connection> &conn, const std::string &username, const std::string &password, const std::string &options) {
     if (doesUserExist(conn, username)) Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("User `{}` already exists.", username));
     else {
         pqxx::result R = execCommand(conn, std::format("CREATE USER {} WITH PASSWORD {} {}", username, conn->quote(password), options));
@@ -68,7 +60,7 @@ void createUser(std::unique_ptr<pqxx::connection> &conn, const std::string &user
     }
 }
 
-bool doesTypeExist(std::unique_ptr<pqxx::connection> &conn, const std::string &typeName) {
+bool doesTypeExist(std::shared_ptr<pqxx::connection> &conn, const std::string &typeName) {
     std::string query = std::format("SELECT 1 FROM pg_type WHERE typname = {}", conn->quote(typeName));
     try {
         pqxx::work tx(*conn);
@@ -81,7 +73,7 @@ bool doesTypeExist(std::unique_ptr<pqxx::connection> &conn, const std::string &t
     }
 }
 
-void createType(std::unique_ptr<pqxx::connection> &conn, const std::string &typeName, const std::string &typeDef) {
+void createType(std::shared_ptr<pqxx::connection> &conn, const std::string &typeName, const std::string &typeDef) {
     // Check if the type already exists
     if (doesTypeExist(conn, typeName)) {
         Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("Type `{}` already exists.", typeName));
@@ -102,7 +94,7 @@ void createType(std::unique_ptr<pqxx::connection> &conn, const std::string &type
     }
 }
 
-bool doesTableExist(std::unique_ptr<pqxx::connection> &conn, const std::string &tableName) {
+bool doesTableExist(std::shared_ptr<pqxx::connection> &conn, const std::string &tableName) {
     std::string query = std::format("SELECT 1 FROM pg_tables WHERE tablename = {}", conn->quote(tableName));
     try {
         pqxx::work tx(*conn);
@@ -115,7 +107,7 @@ bool doesTableExist(std::unique_ptr<pqxx::connection> &conn, const std::string &
     }
 }
 
-void createTable(std::unique_ptr<pqxx::connection> &conn, const std::string &tableName, const std::string &columns) {
+void createTable(std::shared_ptr<pqxx::connection> &conn, const std::string &tableName, const std::string &columns) {
     if (doesTableExist(conn, tableName)) Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("Table `{}` already exists.", tableName));
     else {
         pqxx::result R = execCommand(conn, std::format("CREATE TABLE {} ({})", tableName, columns));
@@ -124,7 +116,7 @@ void createTable(std::unique_ptr<pqxx::connection> &conn, const std::string &tab
     }
 }
 
-bool doesFunctionExist(std::unique_ptr<pqxx::connection> &conn, const std::string &functionName, const std::vector<std::string> &argTypes) {
+bool doesFunctionExist(std::shared_ptr<pqxx::connection> &conn, const std::string &functionName, const std::vector<std::string> &argTypes) {
     std::string query = "SELECT to_regprocedure($1)";
     std::string functionSignature = functionName + "(";
 
@@ -145,7 +137,7 @@ bool doesFunctionExist(std::unique_ptr<pqxx::connection> &conn, const std::strin
     }
 }
 
-void createFunction(std::unique_ptr<pqxx::connection> &conn,
+void createFunction(std::shared_ptr<pqxx::connection> &conn,
                     const std::string &functionName,
                     const std::vector<std::pair<std::string, std::string>> &args,
                     const std::string &returnType,
@@ -181,7 +173,7 @@ void createFunction(std::unique_ptr<pqxx::connection> &conn,
     }
 }
 
-pqxx::result execCommand(std::unique_ptr<pqxx::connection> &conn, const std::string &command) {
+pqxx::result execCommand(std::shared_ptr<pqxx::connection> &conn, const std::string &command) {
     Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("Executing: {}", command));
     try {
         pqxx::work tx(*conn);
@@ -243,7 +235,7 @@ void printRows(const pqxx::result &R) {
 
 // Init functions, required to set up the database
 
-std::unique_ptr<pqxx::connection> initDatabase() {
+void initDatabase() {
     // Connect to the default 'postgres' database as the 'postgres' user
     auto conn = conn2Postgres("postgres", "postgres", "");
 
@@ -274,17 +266,14 @@ std::unique_ptr<pqxx::connection> initDatabase() {
 
     // Define SQL functions
     initFunctions(conn);
-
-    // Return the connection to the now ready database
-    return conn;
 }
 
-void initTypes(std::unique_ptr<pqxx::connection> &conn) {
+void initTypes(std::shared_ptr<pqxx::connection> &conn) {
     createType(conn, "user_role", "ENUM ('customer', 'supplier', 'transporter')");
     createType(conn, "order_status", "ENUM ('shipped', 'delivered', 'cancelled')");
 }
 
-void initTables(std::unique_ptr<pqxx::connection> &conn) {
+void initTables(std::shared_ptr<pqxx::connection> &conn) {
     // Seen only by the admins
     // TODO: possibly merge user types into a single table if that is better
     createTable(conn, "customers", "id SERIAL PRIMARY KEY, username VARCHAR(255) UNIQUE NOT NULL, balance INT NOT NULL, logged_in BOOL NOT NULL DEFAULT FALSE");
@@ -332,7 +321,7 @@ void initTables(std::unique_ptr<pqxx::connection> &conn) {
     execCommand(conn, "GRANT SELECT ON order_items TO supplier, transporter");
 }
 
-void initFunctions(std::unique_ptr<pqxx::connection> &conn) {
+void initFunctions(std::shared_ptr<pqxx::connection> &conn) {
     createFunction(conn, "get_target_table", {{"user_type", "user_role"}}, "VARCHAR(255)", R"(
     DECLARE
         target_table VARCHAR(255);

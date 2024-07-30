@@ -13,14 +13,15 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/obj)
 add_executable(ecommerce
         src/main.cpp
         src/db/dbutils.cpp
+        src/db/PostgresConnectionPool.cpp
         src/redis/rdutils.cpp
+        src/redis/RedisConnectionPool.cpp
         src/models/User.cpp
         src/models/Customer.cpp
         src/models/Supplier.cpp
         src/models/Transporter.cpp
         src/Utils.cpp
         src/models/Order.cpp
-        src/models/Order.h
 )
 
 # Link to redis and postgresql (including C++ versions)

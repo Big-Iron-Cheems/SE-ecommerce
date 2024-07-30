@@ -1,6 +1,8 @@
 #pragma once
 
-#include "model_utils.h"
+#include "../db/dbutils.h"
+#include "../redis/rdutils.h"
+#include <optional>
 
 /**
  * Abstract class representing a user of the system.
