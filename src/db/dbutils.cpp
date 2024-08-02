@@ -32,9 +32,13 @@ bool doesDatabaseExist(std::shared_ptr<pqxx::connection> &conn, const std::strin
 void createDatabase(std::shared_ptr<pqxx::connection> &conn, const std::string &databaseName) {
     if (doesDatabaseExist(conn, databaseName)) Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("Database `{}` already exists.", databaseName));
     else {
-        pqxx::result R = execCommand(conn, std::format("CREATE DATABASE {}", databaseName));
-        if (R.empty()) Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to create database: `{}`.", databaseName));
-        else Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("Database `{}` created.", databaseName));
+        try {
+            pqxx::nontransaction ntx(*conn);
+            ntx.exec(std::format("CREATE DATABASE {}", databaseName));
+            Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("Database `{}` created.", databaseName));
+        } catch (const std::exception &e) {
+            Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to create database: `{}`. Error: {}", databaseName, e.what()));
+        }
     }
 }
 
@@ -110,9 +114,14 @@ bool doesTableExist(std::shared_ptr<pqxx::connection> &conn, const std::string &
 void createTable(std::shared_ptr<pqxx::connection> &conn, const std::string &tableName, const std::string &columns) {
     if (doesTableExist(conn, tableName)) Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("Table `{}` already exists.", tableName));
     else {
-        pqxx::result R = execCommand(conn, std::format("CREATE TABLE {} ({})", tableName, columns));
-        if (R.empty()) Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to create table: `{}`.", tableName));
-        else Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("Table `{}` created", tableName));
+        try {
+            pqxx::work tx(*conn);
+            tx.exec(std::format("CREATE TABLE {} ({})", tableName, columns));
+            tx.commit();
+            Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("Table `{}` created", tableName));
+        } catch (const std::exception &e) {
+            Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to create table: `{}`. Error: {}", tableName, e.what()));
+        }
     }
 }
 

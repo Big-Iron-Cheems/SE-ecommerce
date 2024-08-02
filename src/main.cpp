@@ -3,70 +3,51 @@
 #include "models/Supplier.h"
 #include "models/Transporter.h"
 
+void testUsersInteractions() {
+    Utils::log(Utils::LogLevel::DEBUG, std::cout, "Testing users interactions...");
+
+    // Initialize random number generator
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dist(1, 100);
+    std::uniform_int_distribution<> priceDist(1, 50);
+    std::uniform_int_distribution<> amountDist(1, 10);
+
+    // Create users
+    std::vector<std::unique_ptr<User>> users;
+    for (int i = 0; i < 3; ++i) {
+        users.push_back(std::make_unique<Supplier>("Supplier" + std::to_string(i + 1)));
+        users.push_back(std::make_unique<Customer>("Customer" + std::to_string(i + 1)));
+        users.push_back(std::make_unique<Transporter>("Transporter" + std::to_string(i + 1)));
+    }
+
+    for (auto &user: users) {
+        if (auto supplier = dynamic_cast<Supplier *>(user.get())) {
+            // Add products to suppliers
+            for (int j = 0; j < 3; ++j) {
+                supplier->addProduct("Product" + std::to_string(j + 1), priceDist(gen), amountDist(gen), "Description" + std::to_string(j + 1));
+            }
+        } else if (auto customer = dynamic_cast<Customer *>(user.get())) {
+            // Set random balance and add products to cart
+            customer->setBalance(dist(gen) * 10); // Set random positive balance
+            for (int j = 0; j < 3; ++j) {
+                customer->addProductToCart(j + 1, amountDist(gen)); // Add random amount of products to cart
+            }
+            customer->makeOrder("Random Address " + std::to_string(dist(gen)));
+        } else if (auto transporter = dynamic_cast<Transporter *>(user.get())) {
+            // Get orders history for transporters
+            transporter->getOrdersHistory();
+        }
+    }
+}
+
 int main() {
     // Initialize the database
     initDatabase();
     Utils::log(Utils::LogLevel::TRACE, std::cout, "Ready to work...");
 
     // Testing
-    {
-        // Customer customer("Gigio");
-        // Customer customer2("Melo");
-        // customer2.addProductToCart(8, 2);
-        // customer.addProductToCart(6, 3);
-        // customer.addProductToCart(5,1);
-        // customer.makeOrder("Piazza Bibo 31");
-        // customer.getCart();
-        // customer.searchProduct("mele", std::nullopt, std::nullopt, std::nullopt, std::nullopt);
-        // customer.setBalance(100);
-        // Customer customer = Customer("Gigio");
-        // Supplier supplier("Piero");
-        // Transporter transporter("Pippo");
-        // customer.setBalance(-1);
-        // customer.getBalance();
-        // Customer customer2("Marco");
-        // customer.searchProduct(std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::vector<std::pair<std::string, bool>>{{"amount", false}, {"price", false}});
-        // customer.addProductToCart(1, 3);
-        // customer.addProductToCart(4, 2);
-        // customer.addProductToCart(1, 47);
-
-        // customer.getCart();
-        // customer.makeOrder("Via delle Palme 69");
-        // customer.clearCart();
-        // customer.getCart();
-
-        // customer2.getBalance();
-        // customer2.setBalance(100);
-        // customer2.getBalance();
-        // customer2.setBalance(-70);
-        // customer2.getBalance();
-
-        // Customer customer2err("Gigio");
-        // Customer customer3("Marco");
-        // Customer customer4err("Marco");
-        // Customer customer5("Pippo");
-
-        // Supplier supplier("Pallo");
-        // supplier.getBalance();
-        // supplier.setBalance(100);
-        // supplier.getBalance();
-
-        // Supplier supplier("Piero");
-        // supplier.getProducts("mele", std::nullopt, std::nullopt, std::nullopt);
-        // supplier.addProduct("arancia", 3, 14, "arancia di sicilia");
-        // supplier.getProducts("arancia", std::nullopt, std::nullopt, std::nullopt);
-        // supplier.removeProduct(7);
-        // supplier.removeProduct(17);
-        // supplier.editProduct(5, "Cipolle", 2, 41, "Cipolle di tropea");
-        // supplier.getOrdersHistory();
-        // supplier.getOrderStatus(1);
-
-        // Transporter transporter("Pippo");
-        // transporter.getOrdersHistory();
-        // transporter.getOngoingOrdersInfo();
-        // transporter.setOrderStatus(1, Order::Status::DELIVERED);
-        // transporter.setOrderStatus(2, Order::Status::DELIVERED); // Error
-    }
+    testUsersInteractions();
 
     // Terminating the program
     Utils::log(Utils::LogLevel::TRACE, std::cout, "Exiting program...");

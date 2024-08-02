@@ -18,8 +18,6 @@ protected:
 
     explicit User(std::string name) : name(std::move(name)) {}
 
-    virtual ~User() = default;
-
     enum class UserType { CUSTOMER, SUPPLIER, TRANSPORTER };
 
     /**
@@ -60,6 +58,8 @@ protected:
     void logout();
 
 public:
+    virtual ~User() = default;
+
     // Balance related methods
 
     /**
