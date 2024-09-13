@@ -9,3 +9,9 @@
  * @return a pointer to the Redis connection object
  */
 std::shared_ptr<sw::redis::Redis> conn2Redis();
+
+/**
+ * Drop the Redis database
+ * Used for testing purposes
+ */
+void dropRedis();

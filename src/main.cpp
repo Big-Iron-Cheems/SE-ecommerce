@@ -25,7 +25,7 @@ void testUsersInteractions() {
         if (auto supplier = dynamic_cast<Supplier *>(user.get())) {
             // Add products to suppliers
             for (int j = 0; j < 3; ++j) {
-                supplier->addProduct("Product" + std::to_string(j + 1), priceDist(gen), amountDist(gen), "Description" + std::to_string(j + 1));
+                supplier->addProduct("Product" + std::to_string(j + 1), priceDist(gen), amountDist(gen) * 100, "Description" + std::to_string(j + 1));
             }
         } else if (auto customer = dynamic_cast<Customer *>(user.get())) {
             // Set random balance and add products to cart
@@ -55,7 +55,13 @@ void handleArgs(int argc, char *argv[]) {
                                " [options]\n"
                                "Options:\n"
                                "\t-h, --help    Show this help message and exit\n"
+                               "\t--drop        Drop the database and exit\n"
                                "\t-v            Enable verbose logging to console\n");
+            exit(EXIT_SUCCESS);
+        } else if (arg == "--drop") {
+            dropDatabase();
+            dropRedis();
+            Utils::log(Utils::LogLevel::TRACE, std::cout, "Database and Redis dropped successfully.");
             exit(EXIT_SUCCESS);
         } else if (arg == "-v") {
             Utils::logToConsole = true;
@@ -66,6 +72,7 @@ void handleArgs(int argc, char *argv[]) {
                                " [options]\n"
                                "Options:\n"
                                "\t-h, --help    Show this help message and exit\n"
+                               "\t--drop        Drop the database and exit\n"
                                "\t-v            Enable verbose logging to console\n");
 
             exit(EXIT_FAILURE);

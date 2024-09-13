@@ -58,9 +58,12 @@ bool doesUserExist(std::shared_ptr<pqxx::connection> &conn, const std::string &u
 void createUser(std::shared_ptr<pqxx::connection> &conn, const std::string &username, const std::string &password, const std::string &options) {
     if (doesUserExist(conn, username)) Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("User `{}` already exists.", username));
     else {
-        pqxx::result R = execCommand(conn, std::format("CREATE USER {} WITH PASSWORD {} {}", username, conn->quote(password), options));
-        if (R.empty()) Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to create user: `{}`.", username));
-        else Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("User `{}` created.", username));
+        try {
+            execCommand(conn, std::format("CREATE USER {} WITH PASSWORD {} {}", username, conn->quote(password), options));
+            Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("User `{}` created.", username));
+        } catch (const std::exception &e) {
+            Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to create user: `{}`. Error: {}", username, e.what()));
+        }
     }
 }
 
@@ -548,4 +551,24 @@ void initFunctions(std::shared_ptr<pqxx::connection> &conn) {
 
     execCommand(conn, "GRANT EXECUTE ON FUNCTION get_ongoing_orders(INT) TO transporter;");
     execCommand(conn, "GRANT EXECUTE ON FUNCTION set_order_status(user_role, INT, INT, order_status) TO customer, transporter;");
+}
+
+void dropDatabase() {
+    // Connect to the default 'postgres' database as the 'postgres' user
+    auto conn = conn2Postgres("postgres", "postgres", "");
+
+    // Drop the 'ecommerce' database if it exists
+    try {
+        pqxx::nontransaction ntx(*conn);
+        ntx.exec("DROP DATABASE IF EXISTS ecommerce");
+        Utils::log(Utils::LogLevel::DEBUG, std::cout, std::format("Database `ecommerce` dropped."));
+    } catch (const std::exception &e) {
+        Utils::log(Utils::LogLevel::ERROR, std::cerr, std::format("Failed to drop database: `{}`. Error: {}", "ecommerce", e.what()));
+    }
+
+    // Drop the 'ecommerce' related users
+    execCommand(conn, "DROP USER IF EXISTS ecommerce");
+    execCommand(conn, "DROP USER IF EXISTS customer");
+    execCommand(conn, "DROP USER IF EXISTS supplier");
+    execCommand(conn, "DROP USER IF EXISTS transporter");
 }

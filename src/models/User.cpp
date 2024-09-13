@@ -111,7 +111,6 @@ uint32_t User::getBalance() const {
         tx.commit();
 
         // Print the result
-        Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Balance: {}", bal));
         return bal;
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("An error occurred: {}", e.what()));

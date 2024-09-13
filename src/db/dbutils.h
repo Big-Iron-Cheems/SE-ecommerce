@@ -138,3 +138,9 @@ void initTables(std::shared_ptr<pqxx::connection> &conn);
  * @param conn a pointer to the connection object
  */
 void initFunctions(std::shared_ptr<pqxx::connection> &conn);
+
+/**
+ * Drop the ecommerce database and related objects
+ * Used for testing purposes
+ */
+void dropDatabase();

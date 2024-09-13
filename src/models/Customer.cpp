@@ -315,14 +315,14 @@ void Customer::makeOrder(const std::string &address) {
             tx.exec(updateSupplierBalanceQuery);
         }
 
-        // Step 5: update the customer's balance
-        setBalance(-static_cast<int32_t>(totalPrice));
-
         // Step 6: Remove items from Redis cart and reset the total price
         clearCart();
 
         // Commit the transaction
         tx.commit();
+
+        // Step 5: update the customer's balance
+        setBalance(-static_cast<int32_t>(totalPrice));
         Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Order made, tracking id: {}", newOrderId));
     } catch (const sw::redis::Error &e) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to make order: {}", e.what()));
