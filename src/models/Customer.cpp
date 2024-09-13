@@ -340,19 +340,24 @@ void Customer::cancelOrder(const uint32_t &orderId) {
         auto conn = conn2Postgres("ecommerce", "customer", "customer");
 
         // Check if the order exists
-        std::string query = std::format("SELECT * FROM orders WHERE id = {};", orderId);
+        std::string query = std::format("SELECT * FROM orders WHERE id = {} AND customer_id = '{}';", orderId, id);
         pqxx::work tx(*conn);
         pqxx::result R = tx.exec(query);
-        tx.commit();
 
         if (R.empty()) {
             Utils::log(Utils::LogLevel::ERROR, *logFile, "Failed to cancel order, order not found.");
             return;
         }
-        // TODO: check the status enum to see if it can be actually cancelled
+
+        auto orderStatus = R[0]["status"].as<std::string>();
+        if (orderStatus == "delivered" || orderStatus == "cancelled") {
+            Utils::log(Utils::LogLevel::ERROR, *logFile, "Failed to cancel order, order is already delivered or cancelled.");
+            return;
+        }
 
         // Cancel the order
-        query = std::format("UPDATE orders SET status = 'cancelled' WHERE id = {};", orderId);
+        std::string userType = userTypeToString(getUserType());
+        query = std::format("SELECT set_order_status('{}', {}, {}, 'cancelled');", userType, id, orderId);
         tx.exec(query);
         tx.commit();
 

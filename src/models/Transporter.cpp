@@ -62,7 +62,8 @@ void Transporter::setOrderStatus(const uint32_t &orderId, Order::Status orderSta
         auto conn = conn2Postgres("ecommerce", "transporter", "transporter");
 
         // Edit the status of the order
-        std::string query = std::format("SELECT set_order_status({}, {}, '{}');", id, orderId, Order::orderStatusToString(orderStatus));
+        std::string userType = userTypeToString(getUserType());
+        std::string query = std::format("SELECT set_order_status('{}', {}, {}, '{}');", userType, id, orderId, Order::orderStatusToString(orderStatus));
 
         pqxx::work tx(*conn);
         tx.exec(query);

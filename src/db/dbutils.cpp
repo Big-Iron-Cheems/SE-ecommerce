@@ -305,7 +305,7 @@ void initTables(std::shared_ptr<pqxx::connection> &conn) {
             customer_id INT NOT NULL,
             total_price INT NOT NULL,
             transporter_id INT NOT NULL,
-            status VARCHAR(255) NOT NULL,
+            status order_status NOT NULL,
             address VARCHAR(255) NOT NULL,
             timestamp TIMESTAMP NOT NULL,
             FOREIGN KEY (customer_id) REFERENCES customers(id),
@@ -426,7 +426,7 @@ void initFunctions(std::shared_ptr<pqxx::connection> &conn) {
     BEGIN
         -- Insert a new order into the orders table and return its id
         INSERT INTO orders (customer_id, total_price, transporter_id, status, address, timestamp)
-        VALUES ($1, $2, (SELECT id FROM transporters ORDER BY RANDOM() LIMIT 1), 'pending', $3, NOW())
+        VALUES ($1, $2, (SELECT id FROM transporters ORDER BY RANDOM() LIMIT 1), 'shipped', $3, NOW())
         RETURNING id INTO new_order_id;
 
         RETURN new_order_id;
@@ -508,12 +508,17 @@ void initFunctions(std::shared_ptr<pqxx::connection> &conn) {
         JOIN customers c ON o.customer_id = c.id
         WHERE o.transporter_id = $1 AND o.status = 'shipped';
     END;)"); ///< Get the ongoing orders
-    createFunction(conn, "set_order_status", {{"transporter_id", "INT"}, {"order_id", "INT"}, {"new_status", "order_status"}}, "VOID", R"(
+    createFunction(conn, "set_order_status", {{"user_type", "user_role"}, {"user_id", "INT"}, {"order_id", "INT"}, {"new_status", "order_status"}}, "VOID", R"(
     DECLARE
         current_status order_status;
     BEGIN
         -- Check if the order exists and is handled by the given transporter
-        SELECT o.status INTO current_status FROM orders o WHERE o.id = order_id AND o.transporter_id = $1;
+        IF user_type = 'transporter' THEN
+            SELECT o.status INTO current_status FROM orders o WHERE o.id = order_id AND o.transporter_id = user_id;
+        ELSE
+            SELECT o.status INTO current_status FROM orders o WHERE o.id = order_id AND o.customer_id = user_id;
+        END IF;
+
         IF NOT FOUND THEN
             RAISE EXCEPTION 'Order does not exist or is not handled by this transporter.';
         END IF;
@@ -542,5 +547,5 @@ void initFunctions(std::shared_ptr<pqxx::connection> &conn) {
     execCommand(conn, "GRANT EXECUTE ON FUNCTION edit_product(INT, VARCHAR(255), INT, INT, VARCHAR(255)) TO supplier;");
 
     execCommand(conn, "GRANT EXECUTE ON FUNCTION get_ongoing_orders(INT) TO transporter;");
-    execCommand(conn, "GRANT EXECUTE ON FUNCTION set_order_status(INT, INT, order_status) TO transporter;");
+    execCommand(conn, "GRANT EXECUTE ON FUNCTION set_order_status(user_role, INT, INT, order_status) TO customer, transporter;");
 }
