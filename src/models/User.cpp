@@ -42,7 +42,6 @@ void User::login() {
             // If the user is already in the database, fetch the id and balance, and set the logged_in field to true
             if (!logged_in) {
                 id = user_id;
-                balance = user_balance;
 
                 query = std::format("SELECT set_logged_in('{}', {}, true);", userType, id);
                 pqxx::work tx_login(*conn);
@@ -57,9 +56,8 @@ void User::login() {
             tx_new_user.commit();
 
             id = new_user_id;
-            balance = 0;
         }
-        Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("User `{}` logged in {{type: `{}`, id: {}, balance: {}}}", name, userType, id, balance));
+        Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("User `{}` logged in {{type: `{}`, id: {}, balance: {}}}", name, userType, id, getBalance()));
     } catch (const std::exception &e) {
         throw; // Rethrow the exception to propagate it to the caller
     }
@@ -98,7 +96,7 @@ void User::logout() {
     }
 }
 
-void User::getBalance() const {
+uint32_t User::getBalance() const {
     std::string userType = userTypeToString(getUserType());
     try {
         // Connect to the `ecommerce` database as the `userType` user using conn2Postgres
@@ -114,8 +112,10 @@ void User::getBalance() const {
 
         // Print the result
         Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("Balance: {}", bal));
+        return bal;
     } catch (const std::exception &e) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("An error occurred: {}", e.what()));
+        return 0;
     }
 }
 

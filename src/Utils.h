@@ -46,6 +46,11 @@ public:
     enum class LogLevel { DEBUG, TRACE, ALERT, ERROR };
 
     /**
+     * Whether to log to console. Enabled via -v flag.
+     */
+    static bool logToConsole;
+
+    /**
      * Prints a log message to the specified output stream with the specified debug level.
      * @param level the debug level
      * @param ostream the output stream

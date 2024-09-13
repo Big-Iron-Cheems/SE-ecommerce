@@ -377,7 +377,7 @@ void initFunctions(std::shared_ptr<pqxx::connection> &conn) {
         balance INT;
     BEGIN
         -- Retrieve the balance from the appropriate table
-        EXECUTE format('SELECT balance FROM %I WHERE id = $2', get_target_table(user_type))
+        EXECUTE format('SELECT balance FROM %I WHERE id = $1', get_target_table(user_type))
         INTO balance
         USING user_id;
 

@@ -29,7 +29,7 @@ void testUsersInteractions() {
             }
         } else if (auto customer = dynamic_cast<Customer *>(user.get())) {
             // Set random balance and add products to cart
-            customer->setBalance(dist(gen) * 10); // Set random positive balance
+            customer->setBalance(dist(gen) * 100); // Set random positive balance
             for (int j = 0; j < 3; ++j) {
                 customer->addProductToCart(j + 1, amountDist(gen)); // Add random amount of products to cart
             }
@@ -41,7 +41,41 @@ void testUsersInteractions() {
     }
 }
 
-int main() {
+/**
+ * Handle command line arguments.
+ * @param argc the number of arguments
+ * @param argv the arguments
+ */
+void handleArgs(int argc, char *argv[]) {
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "-h" || arg == "--help") {
+            Utils::log(Utils::LogLevel::TRACE, std::cout,
+                       "Usage: " + std::string(argv[0]) +
+                               " [options]\n"
+                               "Options:\n"
+                               "\t-h, --help    Show this help message and exit\n"
+                               "\t-v            Enable verbose logging to console\n");
+            exit(EXIT_SUCCESS);
+        } else if (arg == "-v") {
+            Utils::logToConsole = true;
+        } else {
+            Utils::log(Utils::LogLevel::ERROR, std::cerr, "Unknown argument: " + arg);
+            Utils::log(Utils::LogLevel::TRACE, std::cout,
+                       "Usage: " + std::string(argv[0]) +
+                               " [options]\n"
+                               "Options:\n"
+                               "\t-h, --help    Show this help message and exit\n"
+                               "\t-v            Enable verbose logging to console\n");
+
+            exit(EXIT_FAILURE);
+        }
+    }
+}
+
+int main(int argc, char *argv[]) {
+    handleArgs(argc, argv);
+
     // Initialize the database
     initDatabase();
     Utils::log(Utils::LogLevel::TRACE, std::cout, "Ready to work...");

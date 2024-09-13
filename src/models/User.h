@@ -13,7 +13,6 @@ protected:
 
     std::string id = "0";              ///< Unique identifier of the user.
     std::string name;                  ///< Name of the user.
-    uint32_t balance = 0;              ///< Balance of the user.
     bool loggedInSuccessfully = false; ///< Whether the user logged in successfully.
 
     explicit User(std::string name) : name(std::move(name)) {}
@@ -65,7 +64,7 @@ public:
     /**
      * Get the balance of the user.
      */
-    [[maybe_unused]] void getBalance() const;
+    [[maybe_unused]] uint32_t getBalance() const;
 
     /**
      * Set the balance of the user. Can add/remove money from the balance.

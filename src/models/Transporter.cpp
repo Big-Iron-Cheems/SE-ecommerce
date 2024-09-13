@@ -7,7 +7,7 @@ std::string Transporter::toString() const {
     oss << "Transporter: {\n"
         << "\tid: " << id << "\n"
         << "\tname: " << name << "\n"
-        << "\tbalance: " << balance << "\n"
+        << "\tbalance: " << getBalance() << "\n"
         << "}";
     return oss.str();
 }

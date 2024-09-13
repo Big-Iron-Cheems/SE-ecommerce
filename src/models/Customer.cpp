@@ -7,7 +7,7 @@ std::string Customer::toString() const {
     oss << "Customer: {\n"
         << "\tid: " << id << "\n"
         << "\tname: " << name << "\n"
-        << "\tbalance: " << balance << "\n"
+        << "\tbalance: " << getBalance() << "\n"
         << "}";
     return oss.str();
 }
@@ -271,7 +271,7 @@ void Customer::makeOrder(const std::string &address) {
     try {
         // Verify that the user has enough balance
         uint32_t totalPrice = getCartTotalPrice();
-        if (balance < totalPrice) {
+        if (getBalance() < totalPrice) {
             Utils::log(Utils::LogLevel::ERROR, *logFile, "Failed to make order, not enough balance.");
             return;
         }
