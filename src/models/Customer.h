@@ -68,7 +68,7 @@ public:
      * @param priceUpperBound The upper bound of the price range to filter for.
      * @param orderBy The columns to sort the results by. (Can be "name", "supplier_username" or "price". The bool indicates the sorting order, true -> ascending, false -> descending.)
      */
-    [[maybe_unused]] void searchProduct(const std::optional<std::string> &name,
+    void searchProduct(const std::optional<std::string> &name,
                                         const std::optional<std::string> &supplierUsername,
                                         const std::optional<uint32_t> &priceLowerBound,
                                         const std::optional<uint32_t> &priceUpperBound,
@@ -81,19 +81,19 @@ public:
      * @param productId the id of the product to add
      * @param amount the amount of products to add. Defaults to 1.
      */
-    [[maybe_unused]] void addProductToCart(const uint32_t &productId, const std::optional<uint32_t> &amount);
+    void addProductToCart(const uint32_t &productId, const std::optional<uint32_t> &amount);
 
     /**
      * Remove a product from the cart.
      * @param productId the id of the product to remove.
      * @param amount the amount of products to remove. Defaults to the amount of the product in the cart.
      */
-    [[maybe_unused]] void removeProductFromCart(const uint32_t &productId, const std::optional<uint32_t> &amount);
+    void removeProductFromCart(const uint32_t &productId, const std::optional<uint32_t> &amount);
 
     /**
      * Get the contents of the cart.
      */
-    [[maybe_unused]] [[nodiscard]] std::map<std::string, std::unordered_map<std::string, std::string>> getCart() const;
+    [[nodiscard]] std::map<std::string, std::unordered_map<std::string, std::string>> getCart() const;
 
     /**
      * Get the total price of the products in the cart.
@@ -103,7 +103,7 @@ public:
     /**
      * Clear the cart.
      */
-    [[maybe_unused]] void clearCart();
+    void clearCart();
 
     // Order related methods
 
@@ -111,22 +111,22 @@ public:
      * Make an order from the products in the cart.
      * @param address the address to deliver the order to.
      */
-    [[maybe_unused]] void makeOrder(const std::string &address);
+    void makeOrder(const std::string &address);
 
     /**
      * Cancel an order.
      * @param orderId the id of the order to cancel.
      */
-    [[maybe_unused]] void cancelOrder(const uint32_t &orderId);
+    void cancelOrder(const uint32_t &orderId);
 
     /**
      * Get the status of an order.
      * @param orderId the id of the order to get the status of.
      */
-    [[maybe_unused]] void getOrderStatus(const uint32_t &orderId) const;
+    void getOrderStatus(const uint32_t &orderId) const;
 
     /**
      * Get the history of orders.
      */
-    [[maybe_unused]] void getOrdersHistory() const;
+    void getOrdersHistory() const;
 };

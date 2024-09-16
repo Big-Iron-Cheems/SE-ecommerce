@@ -112,7 +112,7 @@ pqxx::result execCommand(std::shared_ptr<pqxx::connection> &conn, const std::str
  * Pretty-print the rows of a result, aligning the columns
  * @param R the result to print
  */
-[[maybe_unused]] void printRows(const pqxx::result &R);
+void printRows(const pqxx::result &R);
 
 /**
  * Initialize the ecommerce database

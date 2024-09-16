@@ -56,5 +56,5 @@ public:
      * @param ostream the output stream
      * @param message the message to print, `std::format` for readability
      */
-    [[maybe_unused]] static void log(Utils::LogLevel level, std::ostream &ostream, const std::string &message);
+    static void log(Utils::LogLevel level, std::ostream &ostream, const std::string &message);
 };

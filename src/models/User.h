@@ -22,7 +22,7 @@ protected:
     /**
      * @return a string representation of the user.
      */
-    [[maybe_unused]] [[nodiscard]] virtual std::string toString() const = 0;
+    [[nodiscard]] virtual std::string toString() const = 0;
 
     /**
      * Get the type of the user.
@@ -64,11 +64,11 @@ public:
     /**
      * Get the balance of the user.
      */
-    [[maybe_unused]] uint32_t getBalance() const;
+    [[nodiscard]] uint32_t getBalance() const;
 
     /**
      * Set the balance of the user. Can add/remove money from the balance.
      * @param balanceChange the amount of money to add/remove from the balance.
      */
-    [[maybe_unused]] void setBalance(const int32_t &balanceChange);
+    void setBalance(const int32_t &balanceChange);
 };

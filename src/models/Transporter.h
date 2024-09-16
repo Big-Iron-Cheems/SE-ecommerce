@@ -42,17 +42,17 @@ public:
     /**
     * Get the history of orders.
     */
-    [[maybe_unused]] void getOrdersHistory() const;
+    void getOrdersHistory() const;
 
     /**
      * From the orders to deliver, get the customer's name and the address to deliver the order.
      */
-    [[maybe_unused]] void getOngoingOrdersInfo() const;
+    void getOngoingOrdersInfo() const;
 
     /**
      * Set the status of an order.
      * @param orderId id of the order to update.
      * @param orderStatus status to set.
      */
-    [[maybe_unused]] void setOrderStatus(const uint32_t &orderId, Order::Status orderStatus);
+    void setOrderStatus(const uint32_t &orderId, Order::Status orderStatus);
 };

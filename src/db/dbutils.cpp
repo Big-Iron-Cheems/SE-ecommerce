@@ -155,10 +155,8 @@ void createFunction(std::shared_ptr<pqxx::connection> &conn,
                     const std::string &returnType,
                     const std::string &body) {
     // Get the argument types as a vector
-    std::vector<std::string> argTypes;
-    for (auto &[argName, argType]: args) {
-        argTypes.push_back(argType);
-    }
+    std::vector<std::string> argTypes(args.size());
+    std::transform(args.begin(), args.end(), argTypes.begin(), [](const auto &arg) { return arg.second; });
 
     // Check if the function already exists
     if (doesFunctionExist(conn, functionName, argTypes)) {
@@ -235,7 +233,7 @@ void printRows(const pqxx::result &R) {
     oss << "\n+" << std::string(totalWidth, '-') << "+\n";
     for (const auto &rowData: rows) {
         for (size_t i = 0; i < rowData.size(); ++i) {
-            oss << "| " << std::setw(maxLengths[i]) << std::left << rowData[i] << " ";
+            oss << "| " << std::setw(static_cast<int>(maxLengths[i])) << std::left << rowData[i] << " ";
         }
         oss << "|\n";
         if (&rowData == &rows.front()) oss << "+" << std::string(totalWidth, '-') << "+\n";

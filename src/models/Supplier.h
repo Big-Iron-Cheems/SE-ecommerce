@@ -38,7 +38,7 @@ public:
     /**
      * Retrive all products sold by the supplier.
      */
-    [[maybe_unused]] void getProducts(const std::optional<std::string> &name,
+    void getProducts(const std::optional<std::string> &name,
                                       const std::optional<uint32_t> &priceLowerBound,
                                       const std::optional<uint32_t> &priceUpperBound,
                                       const std::optional<std::vector<std::pair<std::string, bool>>> &orderBy) const;
@@ -50,13 +50,13 @@ public:
      * @param amount the stock of the product.
      * @param description the description of the product.
      */
-    [[maybe_unused]] void addProduct(const std::string &name, const uint32_t &price, const uint32_t &amount, const std::string &description);
+    void addProduct(const std::string &name, const uint32_t &price, const uint32_t &amount, const std::string &description);
 
     /**
      * Remove a product from the supplier's catalog.
      * @param productId the id of the product to remove.
      */
-    [[maybe_unused]] void removeProduct(const uint32_t &productId);
+    void removeProduct(const uint32_t &productId);
 
     /**
      * Edit a product from the supplier's catalog.
@@ -66,7 +66,7 @@ public:
      * @param amount the new stock of the product.
      * @param description the new description of the product.
      */
-    [[maybe_unused]] void editProduct(const uint32_t &productId,
+    void editProduct(const uint32_t &productId,
                                       const std::optional<std::string> &name,
                                       const std::optional<uint32_t> &price,
                                       const std::optional<uint32_t> &amount,
@@ -77,11 +77,11 @@ public:
     /**
     * Get the history of orders.
     */
-    [[maybe_unused]] void getOrdersHistory() const;
+    void getOrdersHistory() const;
 
     /**
      * Get the status of an order.
      * @param orderId the id of the order to get the status of.
      */
-    [[maybe_unused]] void getOrderStatus(const uint32_t &orderId) const;
+    void getOrderStatus(const uint32_t &orderId) const;
 };
