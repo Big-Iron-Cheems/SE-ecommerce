@@ -30,6 +30,7 @@ void Customer::searchProduct(const std::optional<std::string> &name,
         if (supplierUsername) filters += std::format("supplier_username LIKE '%{}%' AND ", supplierUsername.value());
         if (priceLowerBound) filters += std::format("price >= {} AND", priceLowerBound.value());
         if (priceUpperBound) filters += std::format("price <= {} AND", priceUpperBound.value());
+        filters += " amount != -1 AND ";  // Only show products that are in stock
 
         // Remove the last " AND " if it exists
         if (!filters.empty() && filters.ends_with(" AND ")) filters = filters.substr(0, filters.length() - 5);
@@ -83,7 +84,7 @@ void Customer::addProductToCart(const uint32_t &productId, const std::optional<u
         auto pgConn = conn2Postgres("ecommerce", "customer", "customer");
 
         // Build query from parameters
-        std::string query = std::format("SELECT name, supplier_id, price FROM products WHERE id = {};", productId);
+        std::string query = std::format("SELECT name, supplier_id, price FROM products WHERE id = {} AND amount != -1;", productId);
 
         // Execute query
         pqxx::work tx(*pgConn);
@@ -309,9 +310,9 @@ void Customer::makeOrder(const std::string &address) {
         for (auto &[productKey, productData]: cart) {
             // Verify that each product is still available
             std::string query = std::format("SELECT amount FROM products WHERE id = {};", productKey);
-            auto productAmount = tx.query_value<uint32_t>(query);
+            auto productAmount = tx.query_value<int32_t>(query);
 
-            if (std::stoul(productData["amount"]) > productAmount) {
+            if (std::stoi(productData["amount"]) > productAmount) {
                 Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to make order, not enough stock for product {}", productKey));
                 return;
             }

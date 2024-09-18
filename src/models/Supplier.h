@@ -54,6 +54,8 @@ public:
 
     /**
      * Remove a product from the supplier's catalog.
+     * This doesn't effectively delete the database record, but rather sets the amount to -1.
+     * This makes the product unavailable for purchase/search but keeps the record for order history.
      * @param productId the id of the product to remove.
      */
     void removeProduct(const uint32_t &productId);

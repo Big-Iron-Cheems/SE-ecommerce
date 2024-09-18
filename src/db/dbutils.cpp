@@ -466,10 +466,10 @@ void initFunctions(std::shared_ptr<pqxx::connection> &conn) {
             RETURN 0;
         END IF;
 
-        -- Remove the product from the products table and return its id
-        DELETE FROM products
-        WHERE id = $1
-        RETURNING id INTO removed_id;
+        -- Set the amount of the product to -1 to mark it as removed
+        UPDATE products
+        SET amount = -1
+        WHERE id = $1;
 
         RETURN removed_id;
     END;)"); ///< Remove a product from the supplier's catalog
