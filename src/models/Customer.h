@@ -96,6 +96,11 @@ public:
     [[nodiscard]] std::map<std::string, std::unordered_map<std::string, std::string>> getCart() const;
 
     /**
+     * Print the contents of the cart.
+     */
+    void printCart() const;
+
+    /**
      * Get the total price of the products in the cart.
      */
     [[nodiscard]] uint32_t getCartTotalPrice() const;
@@ -124,7 +129,6 @@ public:
      * @param orderId the id of the order to get the status of.
      */
     void getOrderStatus(const uint32_t &orderId) const;
-
     /**
      * Get the history of orders.
      */

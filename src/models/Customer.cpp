@@ -12,7 +12,6 @@ std::string Customer::toString() const {
     return oss.str();
 }
 
-// TODO: replace the params with a structured object (struct or class)
 void Customer::searchProduct(const std::optional<std::string> &name,
                              const std::optional<std::string> &supplierUsername,
                              const std::optional<uint32_t> &priceLowerBound,
@@ -95,7 +94,14 @@ void Customer::addProductToCart(const uint32_t &productId, const std::optional<u
         auto rdConn = conn2Redis();
 
         std::string productKey = std::format("cart:{}:{}", id, productId);
-        std::unordered_map<std::string, std::string> productData{{"name", name}, {"supplierId", supplierId}, {"price", price}, {"amount", std::to_string(amount.value_or(1))}};
+        std::unordered_map<std::string, std::string> productData{{"name", name}, {"supplierId", supplierId}, {"price", price}};
+
+        // Check if the product is already in the cart, if so, update the amount
+        std::optional<std::string> currentAmount = rdConn->hget(productKey, "amount");
+        uint32_t newAmount = amount.value_or(1);
+        if (currentAmount) newAmount += std::stoi(currentAmount.value());
+        productData["amount"] = std::to_string(newAmount);
+
         rdConn->hset(productKey, productData.begin(), productData.end());
 
         // Update the total price of the cart
@@ -168,7 +174,6 @@ void Customer::removeProductFromCart(const uint32_t &productId, const std::optio
     }
 }
 
-// TODO printCart method, uses getCart and prints the cart in a more user-friendly way
 std::map<std::string, std::unordered_map<std::string, std::string>> Customer::getCart() const {
     std::map<std::string, std::unordered_map<std::string, std::string>> completeCart;
     try {
@@ -185,29 +190,35 @@ std::map<std::string, std::unordered_map<std::string, std::string>> Customer::ge
         prodKeys.erase(std::format("cart:{}:total_price", id));
 
         // Iterate over the prodKeys and print the contents of the hashsets
-        uint32_t totalPrice = 0;
-        std::ostringstream oss;
         for (const auto &key: prodKeys) {
             std::unordered_map<std::string, std::string> prodData;
             conn->hgetall(key, std::inserter(prodData, prodData.begin()));
             completeCart[key.substr(key.find(':', key.find(':') + 1) + 1)] = prodData;
-
-            oss << "\nProduct: " << key << " {\n";
-            for (const auto &[field, value]: prodData) {
-                oss << "\t" << field << ": " << value << std::endl;
-            }
-            oss << "}";
-
-            totalPrice += std::stoi(prodData["price"]) * std::stoi(prodData["amount"]);
         }
-        oss << "\nTotal price: " << totalPrice << std::endl;
-        Utils::log(Utils::LogLevel::TRACE, *logFile, oss.str());
-
+        Utils::log(Utils::LogLevel::TRACE, *logFile, completeCart.empty() ? "Cart is empty." : "Cart fetched.");
     } catch (const sw::redis::Error &e) {
         Utils::log(Utils::LogLevel::ERROR, *logFile, std::format("Failed to get cart: {}", e.what()));
     }
 
     return completeCart;
+}
+
+void Customer::printCart() const {
+    auto cart = getCart();
+    if (cart.empty()) {
+        Utils::log(Utils::LogLevel::TRACE, *logFile, "Cart is empty.");
+        return;
+    }
+
+    std::ostringstream oss;
+    for (const auto &[productKey, productData]: cart) {
+        oss << "\nProduct: " << productKey << " {\n";
+        for (const auto &[field, value]: productData) {
+            oss << "\t" << field << ": " << value << std::endl;
+        }
+        oss << "}";
+    }
+    Utils::log(Utils::LogLevel::TRACE, *logFile, std::format("{}\nTotal price: {}", oss.str(), getCartTotalPrice()));
 }
 
 uint32_t Customer::getCartTotalPrice() const {
@@ -399,13 +410,6 @@ void Customer::getOrderStatus(const uint32_t &orderId) const {
 }
 
 void Customer::getOrdersHistory() const {
-    /*
-     * 1. Look for the orders of the customer in the orders table.
-     * 2. Print the orders of the customer.
-     *
-     * TODO Maybe allow optional filters and sorting?
-     */
-
     try {
         // Connect to `ecommerce` db as `customer` user using conn2Postgres
         auto conn = conn2Postgres("ecommerce", "customer", "customer");

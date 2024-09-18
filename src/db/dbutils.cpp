@@ -285,7 +285,6 @@ void initTypes(std::shared_ptr<pqxx::connection> &conn) {
 
 void initTables(std::shared_ptr<pqxx::connection> &conn) {
     // Seen only by the admins
-    // TODO: possibly merge user types into a single table if that is better
     createTable(conn, "customers", "id SERIAL PRIMARY KEY, username VARCHAR(255) UNIQUE NOT NULL, balance INT NOT NULL, logged_in BOOL NOT NULL DEFAULT FALSE");
     createTable(conn, "suppliers", "id SERIAL PRIMARY KEY, username VARCHAR(255) UNIQUE NOT NULL, balance INT NOT NULL, logged_in BOOL NOT NULL DEFAULT FALSE");
     createTable(conn, "transporters", "id SERIAL PRIMARY KEY, username VARCHAR(255) UNIQUE NOT NULL, balance INT NOT NULL, logged_in BOOL NOT NULL DEFAULT FALSE");
@@ -325,7 +324,6 @@ void initTables(std::shared_ptr<pqxx::connection> &conn) {
     )"); ///< Products listed in an order
 
     // Grant permissions
-    // TODO: all grants should be reverted, and instead use procedures to access the data
     execCommand(conn, "GRANT SELECT ON products TO customer, supplier");
     execCommand(conn, "GRANT SELECT ON orders TO customer, supplier, transporter");
     execCommand(conn, "GRANT SELECT ON order_items TO supplier, transporter");

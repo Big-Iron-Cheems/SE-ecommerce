@@ -12,7 +12,6 @@ std::string Transporter::toString() const {
     return oss.str();
 }
 
-// TODO: pass the printRows result into the Utils::log function so that it can be logged in the file as well
 void Transporter::getOrdersHistory() const {
     try {
         // Connect to `ecommerce` db as `transporter` user using conn2Postgres
